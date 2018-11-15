@@ -12,32 +12,40 @@ from rdf2graphviz import rdf_to_graphviz
 #------------------------------------------ Options
 class Options():
     '''
-    This class reads the option file that is acting as a command file
+    This class reads the option file that is acting as a command file.
+    It is managing several files or several times the same file.
     '''
+    # Mandatory fields per csv file
     DOMAIN = 'domain'
     TYPE = 'type'
     PREFIX = 'predicate_prefix'
     DELIMITER = 'delimiter'
+
+    # Optional fields
     SEMANTIC = 'semantic'
+    
     def __init__(self, filename):
         self.filename = filename
         self.config = configparser.ConfigParser()
         self.config.read(filename)
-        self.filenb = len(self.config.sections())
+        self.sections = self.config.sections()
+        self.filenb = len(self.sections)
+        self.delimiters = []
+        for f in self.sections:
+            self.delimiters.append(self.config.get(f, Options.DELIMITER))
+    def get_files(self):
+        return self.sections
+    def get_delimiters(self):
+        return self.delimiters
     def get_option(self, datafile, key):
         if self.config.has_section(datafile):
             if self.config.has_option(datafile, key):
                 return self.config.get(datafile,key)
             else:
-                raise ValueError('Unknown option in configuration file: ' + key)
+                # Usable in case of lack of semantics in the config file
+                return None
         else:
             raise ValueError('Unknown section in configuration file: ' + datafile)
-    def get_filename(index):
-        if self.filenb ==0:
-            return None
-        else:
-            # index is not used - for future use
-            return self.config.sections()[0]
     def print(self):
         for sec in self.config.sections():
             print('Section: ' + sec)
@@ -48,7 +56,9 @@ class Options():
 def test_Options():
     options = Options('csv2rdf.ini')
     options.print()
-        
+    print(options.get_files())
+    print(options.get_delimiters())
+    
 
 #------------------------------------------ RDFStore
 class RDFStore():
@@ -57,8 +67,8 @@ class RDFStore():
     TODO Add more output formats in dump_store
     '''
     def __init__(self, name):
-        # Expecting name to be something like "toto.csv"
-        self.name = name.split('.')[0] + '.ttl'
+        # Expecting name to be something like "toto"
+        self.name = name + '.ttl'
         self.store = Graph()
     def get_store(self):
         return self.store
@@ -75,119 +85,8 @@ def test_RDFStore():
     object = URIRef('https://www.test.urg/sem#oups')
     store.add((subject, RDF.type, object))
     store.dump(True)
-    
-
-#-------------------This class should be useless        
-class Config():
-    def __init__(self,csv_filename, options, verbose=False):
-        self.domain = ''
-        self.type = ''
-        self.prefix = ''
-        self.delimiter = ''
-        self.predicates = []
-        self.csv_filename = csv_filename
-        self.options = options
-        self.verbose = verbose
-        self.domain    = self.options.get_option(csv_filename, DOMAIN)
-        self.type      = self.options.get_option(csv_filename, TYPE)
-        self.prefix    = self.options.get_option(csv_filename, PREFIX)
-        self.delimiter = self.options.get_option(csv_filename, DELIMITER)
-        self.store = Graph()
-        self.type = URIRef(self.domain + self.type)
-    def print(self):
-        print('Configuration for ' + self.csv_filename + ': ' \
-              + self.domain + '|' + self.type + '|' + self.prefix \
-              + '|' + self.delimiter)
-    def parse_file(self):
-        reader = csv.reader(open(self.csv_filename, "r"), \
-                            delimiter=self.delimiter)
-        try:
-            for i, row in enumerate(reader):
-                if i == 0:
-                    for elem in row:
-                        predicate = self.domain + format_predicate(elem)
-                        self.predicates.append(URIRef(predicate))
-                    if self.verbose:
-                        print(self.predicates)
-                else:
-                    subject = URIRef(self.domain + self.prefix + str(i))
-                    self.store.add((subject, RDF.type, self.type))
-                    for n, elem in enumerate(row):
-                        if not elem == '':
-                            e = Literal(elem)
-                            self.store.add((subject, self.predicates[n], e))
-            if self.verbose:            
-                print("%d lines loaded" % (i-1))
-        except csv.Error as e:
-            print("Error caught in loading csv file")
-            print(e)
-    def dump_store(self):
-        storename = self.csv_filename.split('.')[0] + '.ttl'
-        self.store.serialize(storename, format='turtle')
-        if self.verbose:
-            print('Store dumped')
-    def get_store(self):
-        return self.store
-    def get_delimiter(self):
-        return self.delimiter
-    def get_csvfilename(self):
-        return self.csv_filename
-    def get_domain(self):
-        return self.domain
-    def get_prefix(self):
-        return self.prefix
-    def get_type(self):
-        return self.type
-
 
 #------------------------------------------ default_csv_parser
-def default_csv_parser(conf, store, verbose=False):
-    '''
-    In case no semantics are provided, this is the default parsing procedure
-    This function reads the CSV file line by line and generates default triples:
-    -> domain:predicate_prefix+index RDF.type type .
-    And for each cell in the line:
-    -> domain:predicate_prefix+index COLUMN_TITLE Literal(value) .
-    '''
-    reader = csv.reader(open(conf.get_filename(0), "r"), delimiter=conf.get_delimiter())
-
-    #reprendre ici
-
-
-    
-    try:
-        # predicates is used to store all headers of the first row but in a RDF manner
-        predicates = []
-        for i, row in enumerate(reader):
-            if i == 0:
-                for elem in row:
-                    predicates.append(URIRef(conf.get_domain() + format_predicate(elem)))
-                if self.verbose:
-                    print(predicates)
-            else:
-                subject = URIRef(conf.get_domain() + conf.get_prefix() + str(i))
-                store.add((subject, RDF.type, conf.get_type()))
-                for n, elem in enumerate(row):
-                    if not elem == '':
-                        e = Literal(elem)
-                        store.add((subject, predicates[n], e))
-        if verbose:            
-            print("%d lines loaded" % (i-1))
-    except csv.Error as e:
-        print("Error caught in loading csv file")
-        print(e)
-
-        
-def test_default_csv_parser():
-    options = Options('csv2rdf.ini')
-    store = RDFStore('test.csv')
-    default_csv_parser(options, store, True)
-
-
-
-    
-
-
 def format_predicate(pred):
     new = ''
     for i, c in enumerate(pred):
@@ -200,6 +99,63 @@ def format_predicate(pred):
     
 def test_pred():
     print(format_predicate('I am a big-boy'))
+
+
+def default_csv_parser(conf, store, verbose=False):
+    '''
+    In case no semantics are provided, this is the default parsing procedure
+    This function reads the CSV file line by line and generates default triples:
+    -> domain:predicate_prefix+index RDF.type type .
+    And for each cell in the line:
+    -> domain:predicate_prefix+index COLUMN_TITLE Literal(value) .
+    '''
+    files = conf.get_files()
+    delimiters = conf.get_delimiters()
+    for j, f in enumerate(files):
+        try:
+            reader = csv.reader(open(f, "r"), delimiter=delimiters[j])
+
+            # predicates is used to store all headers of the first row but in a RDF manner
+            # because they will be the predicate
+            predicates = []
+            domain = conf.get_option(f, Options.DOMAIN)
+            prefix = conf.get_option(f, Options.PREFIX)
+            mytype = conf.get_option(f, Options.TYPE)
+            for i, row in enumerate(reader):
+                if i == 0:
+                    for elem in row:
+                        predicates.append(URIRef(domain + format_predicate(elem)))
+                    if verbose:
+                        print(predicates)
+                else:
+                    subject = URIRef(domain + prefix + str(i))
+                    store.add((subject, RDF.type, URIRef(domain + mytype)))
+                    for n, elem in enumerate(row):
+                        if not elem == '':
+                            e = Literal(elem)
+                            store.add((subject, predicates[n], e))
+            if verbose:            
+                print("%d lines loaded" % (i-1))
+        except csv.Error as e:
+            print("Error caught in loading csv file: " + f)
+            print(j, delimiters[j])
+            print(e)
+            sys.exit(1)
+        except Exception as e:
+            print('Unknown error')
+            print(e)
+  
+        
+def test_default_csv_parser():
+    test_pred()
+    options = Options('csv2rdf.ini')
+    store = RDFStore('TEST_dump')
+    default_csv_parser(options, store, True)
+    store.dump(True)
+
+    
+#------------------------------------------ semantic_csv_parser
+#reprendre ici
 
 class Semantic():
     '''
