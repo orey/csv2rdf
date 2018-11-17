@@ -4,7 +4,7 @@
 # Date:           November 2018
 # License:        GPL v3
 #============================================
-import getopt, sys, csv, configparser, os.path
+import getopt, sys, csv, configparser, os.path, traceback
 from rdflib import Graph, Literal, URIRef, RDF, BNode
 from rdf2graphviz import rdf_to_graphviz
 
@@ -152,20 +152,68 @@ def test_default_csv_parser():
     default_csv_parser(options, 'test1.csv', store, True)
     store.dump(True)
 
-    
+
 #------------------------------------------ semantic_csv_parser
+class SGrammar():
+    SEP = '|'
+    IGNORE = 'ignore'
+    SUBJECT1 = 'subject1'
+    SUBJECT2 = 'subject2'
+    LITERAL = 'literal'
+
+class Subject1():
+    def __init__(self, index, cname, stype):
+        self.index = index
+        self.cname = cname
+        self.stype = stype
+
+class Subject2(Subject1):
+    def __init__(self, index, cname, stype, direction, multi, name=''):
+        super().__init__(index, cname, stype)
+        self.direction = direction
+        self.multi = multi
+        self.name = name
+
+
 def semantic_csv_parser(conf, f, store, verbose=False):
     semantic = conf.get_option(f, conf.SEMANTICS)
     if semantic == None:
         raise ValueError('No semantic file found')
     soptions = {}
     try:
-        reader = csv.reader(open(semantic, 'r'), delimiter = conf.SEM_DELIM)
-        for row in reader:
-            print(row)
+        reader = csv.reader(open(semantic, 'r'), delimiter = conf.get_option(f, conf.SEM_DELIM))
+        for i, row in enumerate(reader):
+            if len(row) != 2:
+                raise ValueError('Row #' + str(i+1) + ' does not have 3 flields: ' + str(row))
+            key = row[0]
+            value = row[1]
+            if value != SGrammar.IGNORE:
+                if verbose: print(row)
+                parts = value.split(SGrammar.SEP)
+                if len(parts) < 1:
+                    raise ValueError('Grammar line not recognized: ' + row[1])
+                if verbose: print(parts)
+                # subject 1
+                if parts[0] == SGrammar.SUBJECT1:
+                    if len(parts) != 2:
+                        raise ValueError('Grammar line not correct for subject1: ' + row[1])
+                    soptions[i] = Subject1(i, row[0], parts[1])
+                elif parts[0] == SGrammar.SUBJECT2:
+                    if len(parts) == 4:
+                        soptions[i] = Subject2(i, row[0], parts[1], parts[2], parts[3])
+                    elif len(parts) == 5:
+                        soptions[i] = Subject2(i, row[0], parts[1], parts[2], parts[3], parts[4])
+                    else:
+                        raise ValueError('Grammar line not correct for subject2: ' + row[1])
+                elif parts[0] == SGrammar.LITERAL:
+                    soptions[i] = SGrammar.LITERAL
+                else:
+                    raise ValueError('Grammar line not recognized: ' + row[1])
+        if verbose: print(soptions)
     except Exception as e:
-        print(type(e), e, e.args)    
-    return True
+        print(type(e), e, e.args)
+        traceback.print_exc()
+
 
 class Semantic():
     '''
@@ -225,7 +273,7 @@ def orchestrator(conf_file, storename, verbose=False):
         
 def test_orchestrator():
     #orchestrator('toto.ini')
-    orchestrator('csv2rdf.ini', 'ORCHESTRE')
+    orchestrator('csv2rdf.ini', 'ORCHESTRE', verbose=True)
 
         
 #------------------------------------------ usage

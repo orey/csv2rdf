@@ -38,3 +38,35 @@ Concretely:
 
 ## CSV To RDF Comments
 
+### Comments about the semantic parser
+
+Vocabulary hypothesis: triples are decomposed in subject, predicate, object. Subjects and objects are roles that cen be endorsed by URIRefs or Literal or blank nodes.
+
+Despite the fact that there may be lists in some fields, we'll try not tu use any blank node concept.
+
+The semantic parser works with a semantic simplistic grammar. The idea of this grammar is to identify how the 3 following informations should be dealt with:
+
+  * Line identifier: we will assume a particular column is playing this role; it will be the "master subject" but can be a.
+  * Column name: generally used as a predicate.
+  * Cell value: can be a Literal, an object or a subject.
+
+The grammar proposes the following semantic:
+
+  * CSV line = 'colum-name;grammar'
+  * colum-name will be formated with "_" by the parser
+  * grammar = 'role|type|direction|expected_field_cardinality|name' OR 'ignore'
+  * role =
+    * 'subject1' for the primary subject
+	* 'subject2' for others
+  * type = the type in the domain of the config file
+  * direction =
+    * 'S' for standard (meaning 'subject1 predicate object')
+	* 'R' for reverse (meaning 'object predicate subject1')
+  * expected_field_cardinality = 'single' OR 'multi': this should be done with a lambda function able to analyze the cell and to find multiple occurences of the searched pattern
+  * name = a string that describe better the predicate than the column name. If this is not provided, the colum name is predicatified.
+
+  * subject1|PN
+  * subject2|PN|S|multi|Father
+  * literal
+
+Must also manage void fields
