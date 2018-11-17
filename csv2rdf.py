@@ -4,7 +4,7 @@
 # Date:           November 2018
 # License:        GPL v3
 #============================================
-import getopt, sys, csv, configparser
+import getopt, sys, csv, configparser, os.path
 from rdflib import Graph, Literal, URIRef, RDF, BNode
 from rdf2graphviz import rdf_to_graphviz
 
@@ -22,21 +22,18 @@ class Options():
     DELIMITER = 'delimiter'
 
     # Optional fields
-    SEMANTIC = 'semantic'
+    SEMANTICS = 'semantics'
     
     def __init__(self, filename):
+        if not os.path.isfile(filename):
+            raise FileNotFoundError('File "' + filename + '" not found.')
         self.filename = filename
         self.config = configparser.ConfigParser()
         self.config.read(filename)
         self.sections = self.config.sections()
         self.filenb = len(self.sections)
-        self.delimiters = []
-        for f in self.sections:
-            self.delimiters.append(self.config.get(f, Options.DELIMITER))
     def get_files(self):
         return self.sections
-    def get_delimiters(self):
-        return self.delimiters
     def get_option(self, datafile, key):
         if self.config.has_section(datafile):
             if self.config.has_option(datafile, key):
@@ -57,7 +54,6 @@ def test_Options():
     options = Options('csv2rdf.ini')
     options.print()
     print(options.get_files())
-    print(options.get_delimiters())
     
 
 #------------------------------------------ RDFStore
@@ -101,7 +97,7 @@ def test_pred():
     print(format_predicate('I am a big-boy'))
 
 
-def default_csv_parser(conf, store, verbose=False):
+def default_csv_parser(conf, f, store, verbose=False):
     '''
     In case no semantics are provided, this is the default parsing procedure
     This function reads the CSV file line by line and generates default triples:
@@ -109,60 +105,60 @@ def default_csv_parser(conf, store, verbose=False):
     And for each cell in the line:
     -> domain:predicate_prefix+index COLUMN_TITLE Literal(value) .
     '''
-    files = conf.get_files()
-    delimiters = conf.get_delimiters()
-    for j, f in enumerate(files):
-        try:
-            reader = csv.reader(open(f, "r"), delimiter=delimiters[j])
+    delim = conf.get_option(f, Options.DELIMITER)
+    try:
+        reader = csv.reader(open(f, "r"), delimiter=delim)
 
-            # predicates is used to store all headers of the first row but in a RDF manner
-            # because they will be the predicate
-            predicates = []
-            domain = conf.get_option(f, Options.DOMAIN)
-            prefix = conf.get_option(f, Options.PREFIX)
-            mytype = conf.get_option(f, Options.TYPE)
-            for i, row in enumerate(reader):
-                if i == 0:
-                    for elem in row:
-                        predicates.append(URIRef(domain + format_predicate(elem)))
-                    if verbose:
-                        print(predicates)
-                else:
-                    subject = URIRef(domain + prefix + str(i))
-                    store.add((subject, RDF.type, URIRef(domain + mytype)))
-                    for n, elem in enumerate(row):
-                        if not elem == '':
-                            e = Literal(elem)
-                            store.add((subject, predicates[n], e))
-            if verbose:            
-                print("%d lines loaded" % (i-1))
-        except csv.Error as e:
-            print("Error caught in loading csv file: " + f)
-            print(j, delimiters[j])
-            print(e)
-            sys.exit(1)
-        except Exception as e:
-            print('Unknown error')
-            print(e)
+        # predicates is used to store all headers of the first row but in a RDF manner
+        # because they will be the predicate
+        predicates = []
+        domain = conf.get_option(f, Options.DOMAIN)
+        prefix = conf.get_option(f, Options.PREFIX)
+        mytype = conf.get_option(f, Options.TYPE)
+        for i, row in enumerate(reader):
+            if i == 0:
+                for elem in row:
+                    predicates.append(URIRef(domain + format_predicate(elem)))
+                if verbose:
+                    print(predicates)
+            else:
+                subject = URIRef(domain + prefix + str(i))
+                store.add((subject, RDF.type, URIRef(domain + mytype)))
+                for n, elem in enumerate(row):
+                    if not elem == '':
+                        e = Literal(elem)
+                        store.add((subject, predicates[n], e))
+        if verbose:            
+            print("%d lines loaded" % (i-1))
+    except csv.Error as e:
+        print("Error caught in loading csv file: " + f)
+        print(e)
+        sys.exit(1)
+    except Exception as e:
+        print('Unknown error')
+        print(type(e))
+        print(e.args)
+        print(e)
   
         
 def test_default_csv_parser():
     test_pred()
     options = Options('csv2rdf.ini')
     store = RDFStore('TEST_dump')
-    default_csv_parser(options, store, True)
+    default_csv_parser(options, 'test1.csv', store, True)
     store.dump(True)
 
     
 #------------------------------------------ semantic_csv_parser
-#reprendre ici
+def semantic_csv_parser(conf, f, store, verbose=False):
+    return True
 
 class Semantic():
     '''
     Semantic file is a CSV file with in first column the header name of the data file
     and in the second column orders about the type.
     '''
-    def __init__(self, semantic, verbose):
+    def __init__(self, option, verbose):
         self.semantic = semantic
         self.verbose  = verbose
         self.soptions = {}
@@ -191,9 +187,34 @@ class Semantic():
         if rule.startswith('primary'):
             return cvalue
         
+#------------------------------------------ orchestrator
+def orchestrator(conf_file, storename, verbose=False):
+    '''
+    The orchestrator determines what to do from the option files and calls the right parser
+    depending on the semantic file presence of absence
+    '''
+    try:
+        options = Options(conf_file)
+        store = RDFStore(storename)
+        files = options.get_files()
+        for f in files:
+            if options.get_option(f, Options.SEMANTICS) != None:
+                semantic_csv_parser(options, f, store, verbose)
+            else:
+                default_csv_parser(options, f, store, verbose)
+        return store
+    except Exception as e:
+        print(type(e))
+        print(e)
+        sys.exit(1)
+
         
+def test_orchestrator():
+    #orchestrator('toto.ini')
+    orchestrator('csv2rdf.ini', 'ORCHESTRE')
 
-
+        
+#------------------------------------------ usage
 def usage():
     print("Utility to transform CSV files into RDF files")
     print("Usage: \n $ csv2rdf -o OPTIONS.ini [-v]")
@@ -224,6 +245,7 @@ def test_cases():
     test_Options()
     test_RDFStore()
     test_default_csv_parser()
+    test_orchestrator()
     print('------------\nTest end')
     
 
