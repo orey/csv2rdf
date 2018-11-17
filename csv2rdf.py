@@ -23,6 +23,8 @@ class Options():
 
     # Optional fields
     SEMANTICS = 'semantics'
+    SEM_DELIM = 'semantics_delimiter'
+    DEFAULT_SEM_DELIM = ';'
     
     def __init__(self, filename):
         if not os.path.isfile(filename):
@@ -39,6 +41,8 @@ class Options():
             if self.config.has_option(datafile, key):
                 return self.config.get(datafile,key)
             else:
+                if key == Options.SEM_DELIM:
+                    return Options.DEFAULT_SEM_DELIM
                 # Usable in case of lack of semantics in the config file
                 return None
         else:
@@ -76,7 +80,7 @@ class RDFStore():
             print('Store dumped')
 
 def test_RDFStore():
-    store = RDFStore('test.csv')
+    store = RDFStore('test_RDFStore')
     subject = BNode()
     object = URIRef('https://www.test.urg/sem#oups')
     store.add((subject, RDF.type, object))
@@ -151,6 +155,16 @@ def test_default_csv_parser():
     
 #------------------------------------------ semantic_csv_parser
 def semantic_csv_parser(conf, f, store, verbose=False):
+    semantic = conf.get_option(f, conf.SEMANTICS)
+    if semantic == None:
+        raise ValueError('No semantic file found')
+    soptions = {}
+    try:
+        reader = csv.reader(open(semantic, 'r'), delimiter = conf.SEM_DELIM)
+        for row in reader:
+            print(row)
+    except Exception as e:
+        print(type(e), e, e.args)    
     return True
 
 class Semantic():
