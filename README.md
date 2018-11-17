@@ -67,6 +67,6 @@ The grammar proposes the following semantic:
 
   * subject1|PN
   * subject2|PN|S|multi|Father
-  * literal
+  * literal|Name
 
 Must also manage void fields

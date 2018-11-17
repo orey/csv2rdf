@@ -160,12 +160,21 @@ class SGrammar():
     SUBJECT1 = 'subject1'
     SUBJECT2 = 'subject2'
     LITERAL = 'literal'
+    FORGET = ['NONE', '-', '']
 
-class Subject1():
-    def __init__(self, index, cname, stype):
+class MLiteral():
+    def __init__(self, index, cname):
         self.index = index
         self.cname = cname
+    def get_cname(self):
+        return self.cname
+
+class Subject1(MLiteral):
+    def __init__(self, index, cname, stype):
+        super().__init__(index, cname)
         self.stype = stype
+    def get_type(self):
+        return self.stype
 
 class Subject2(Subject1):
     def __init__(self, index, cname, stype, direction, multi, name=''):
@@ -175,12 +184,15 @@ class Subject2(Subject1):
         self.name = name
 
 
+
 def semantic_csv_parser(conf, f, store, verbose=False):
     semantic = conf.get_option(f, conf.SEMANTICS)
     if semantic == None:
         raise ValueError('No semantic file found')
+    subj1 = None
     soptions = {}
     try:
+        # 1. Parse options
         reader = csv.reader(open(semantic, 'r'), delimiter = conf.get_option(f, conf.SEM_DELIM))
         for i, row in enumerate(reader):
             if len(row) != 2:
@@ -197,7 +209,8 @@ def semantic_csv_parser(conf, f, store, verbose=False):
                 if parts[0] == SGrammar.SUBJECT1:
                     if len(parts) != 2:
                         raise ValueError('Grammar line not correct for subject1: ' + row[1])
-                    soptions[i] = Subject1(i, row[0], parts[1])
+                    subj1 = i, Subject1(i, row[0], parts[1])
+                # Subject2
                 elif parts[0] == SGrammar.SUBJECT2:
                     if len(parts) == 4:
                         soptions[i] = Subject2(i, row[0], parts[1], parts[2], parts[3])
@@ -205,11 +218,59 @@ def semantic_csv_parser(conf, f, store, verbose=False):
                         soptions[i] = Subject2(i, row[0], parts[1], parts[2], parts[3], parts[4])
                     else:
                         raise ValueError('Grammar line not correct for subject2: ' + row[1])
+                # Literal
                 elif parts[0] == SGrammar.LITERAL:
-                    soptions[i] = SGrammar.LITERAL
+                    soptions[i] = MLiteral(i, row[0])
                 else:
                     raise ValueError('Grammar line not recognized: ' + row[1])
-        if verbose: print(soptions)
+        if verbose:
+            print(subj1)
+            print(soptions)
+        # 2. Parse file
+        domain = conf.get_option(f, Options.DOMAIN)
+        mytype = conf.get_option(f, Options.TYPE)
+        reader = csv.reader(open(f, 'r'), delimiter = conf.get_option(f, conf.DELIMITER))
+        for i, row in enumerate(reader):
+            # First row is skipped
+            if i == 0:
+                continue
+            # Standard row: get the subject1 value
+            subj = URIRef(domain + row[subj1[0]])
+            triple = (subj, RDF.type, URIRef(domain + subj1[1].get_type()))
+            if verbose: print(triple)
+            store.add(triple)
+            # Iterate through soptions
+            keys = soptions.keys()
+            values = soptions.values()
+            for k in keys:
+                # Get the value in cell i, k
+                val = row[k]
+                if val in SGrammar.FORGET:
+                    # Skip before not meaningful
+                    continue
+                if verbose: print(val)
+                gram = soptions[k]
+                triple = None
+                if type(gram) == MLiteral:
+                    triple = (subj, URIRef(domain + gram.get_cname()), Literal(val))
+                    if verbose: print(triple)
+                    store.add(triple)
+                elif type(gram) == Subject2:
+                    # Get infos
+                    mtype = URIRef(domain + gram.get_type())
+                    vals = val.split(' ')
+                    for valor in vals:
+                        # Type all records
+                        temp = URIRef(domain + valor)
+                        t = (temp, RDF.type, mtype)
+                        store.add(t)
+                        if verbose: print(t)
+                        # Link them with the subj
+                        
+                    
+
+            
+            
     except Exception as e:
         print(type(e), e, e.args)
         traceback.print_exc()
