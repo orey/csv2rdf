@@ -62,11 +62,16 @@ The grammar proposes the following semantic:
   * direction =
     * 'S' for standard (meaning 'subject1 predicate object')
 	* 'R' for reverse (meaning 'object predicate subject1')
-  * expected_field_cardinality = 'single' OR 'multi': this should be done with a lambda function able to analyze the cell and to find multiple occurences of the searched pattern
   * name = a string that describe better the predicate than the column name. If this is not provided, the colum name is predicatified.
 
   * subject1|PN
-  * subject2|PN|S|multi|Father
-  * literal|Name
+  * subject2|PN|S|Father
+  * literal
 
 Must also manage void fields
+
+iconv -f utf-8 -t utf-8 -c file.txt
+
+Grep all unicode non characters with line numbers in front
+
+  * grep -naxv '.*' file.txt

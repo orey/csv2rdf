@@ -161,6 +161,8 @@ class SGrammar():
     SUBJECT2 = 'subject2'
     LITERAL = 'literal'
     FORGET = ['NONE', '-', '']
+    STANDARD = 'S'
+    REVERSE = 'R'
 
 class MLiteral():
     def __init__(self, index, cname):
@@ -177,13 +179,20 @@ class Subject1(MLiteral):
         return self.stype
 
 class Subject2(Subject1):
-    def __init__(self, index, cname, stype, direction, multi, name=''):
+    def __init__(self, index, cname, stype, direction, name=''):
         super().__init__(index, cname, stype)
         self.direction = direction
-        self.multi = multi
         self.name = name
-
-
+    def is_standard(self):
+        if self.direction == SGrammar.STANDARD:
+            return True
+        else:
+            return False
+    def get_name(self):
+        if self.name == '':
+            return format_predicate(self.cname)
+        else:
+            return self.name
 
 def semantic_csv_parser(conf, f, store, verbose=False):
     semantic = conf.get_option(f, conf.SEMANTICS)
@@ -203,7 +212,7 @@ def semantic_csv_parser(conf, f, store, verbose=False):
                 if verbose: print(row)
                 parts = value.split(SGrammar.SEP)
                 if len(parts) < 1:
-                    raise ValueError('Grammar line not recognized: ' + row[1])
+                    raise ValueError('Grammar line not recognized: ' + value)
                 if verbose: print(parts)
                 # subject 1
                 if parts[0] == SGrammar.SUBJECT1:
@@ -212,10 +221,10 @@ def semantic_csv_parser(conf, f, store, verbose=False):
                     subj1 = i, Subject1(i, row[0], parts[1])
                 # Subject2
                 elif parts[0] == SGrammar.SUBJECT2:
-                    if len(parts) == 4:
+                    if len(parts) == 3:
+                        soptions[i] = Subject2(i, row[0], parts[1], parts[2])
+                    elif len(parts) == 4:
                         soptions[i] = Subject2(i, row[0], parts[1], parts[2], parts[3])
-                    elif len(parts) == 5:
-                        soptions[i] = Subject2(i, row[0], parts[1], parts[2], parts[3], parts[4])
                     else:
                         raise ValueError('Grammar line not correct for subject2: ' + row[1])
                 # Literal
@@ -231,12 +240,13 @@ def semantic_csv_parser(conf, f, store, verbose=False):
         mytype = conf.get_option(f, Options.TYPE)
         reader = csv.reader(open(f, 'r'), delimiter = conf.get_option(f, conf.DELIMITER))
         for i, row in enumerate(reader):
+            sys.stdout.write(str(i+1) + '|')
             # First row is skipped
             if i == 0:
                 continue
             # Standard row: get the subject1 value
-            subj = URIRef(domain + row[subj1[0]])
-            triple = (subj, RDF.type, URIRef(domain + subj1[1].get_type()))
+            subj = URIRef(domain + 'A_' + row[subj1[0]])
+            triple = (subj, RDF.type, URIRef(domain + 'A_' + subj1[1].get_type()))
             if verbose: print(triple)
             store.add(triple)
             # Iterate through soptions
@@ -252,80 +262,45 @@ def semantic_csv_parser(conf, f, store, verbose=False):
                 gram = soptions[k]
                 triple = None
                 if type(gram) == MLiteral:
-                    triple = (subj, URIRef(domain + gram.get_cname()), Literal(val))
+                    triple = (subj, URIRef(domain + 'A_' + gram.get_cname()), Literal(val))
                     if verbose: print(triple)
                     store.add(triple)
                 elif type(gram) == Subject2:
                     # Get infos
-                    mtype = URIRef(domain + gram.get_type())
+                    mtype = URIRef(domain + 'A_' + gram.get_type())
+                    # TODO the function that discovers entities in the cell shoudl be parameterizable
                     vals = val.split(' ')
                     for valor in vals:
                         # Type all records
-                        temp = URIRef(domain + valor)
+                        temp = URIRef(domain + 'A_' + valor)
                         t = (temp, RDF.type, mtype)
                         store.add(t)
                         if verbose: print(t)
-                        # Link them with the subj
-                        
-                    
-
-            
-            
+                        # Link them with the subj after analyzing in what direction
+                        if gram.is_standard():
+                            t = (subj, URIRef(domain + 'A_' + gram.get_name()), temp)
+                        else:
+                            t = (temp, URIRef(domain + 'A_' + gram.get_name()), subj)
+                        if verbose: print(t)
+                        store.add(t)
     except Exception as e:
         print(type(e), e, e.args)
         traceback.print_exc()
 
-
-class Semantic():
-    '''
-    Semantic file is a CSV file with in first column the header name of the data file
-    and in the second column orders about the type.
-    '''
-    def __init__(self, option, verbose):
-        self.semantic = semantic
-        self.verbose  = verbose
-        self.soptions = {}
-        reader = csv.reader(open(self.semantic, "r"), delimiter=';')
-        try:
-            for row in reader:
-                print(row)
-                self.soptions[row[0]] = row[1]
-            if self.verbose:            
-                print("Semantic config loaded")
-        except csv.Error as e:
-            print("Error caught in loading csv file")
-            print(e)
-    def print(self):
-        print(self.soptions)
-    def get_root(self):
-        for k,v in self.soptions.items():
-            if v.startswith('primary'):
-                return k, v[8:]
-            else:
-                raise ValueError('No primary found in configuration')
-    def create_triple(self, root, cname, cvalue):
-        rule = self.soptions[cname]
-        if rule == 'ignore':
-            return None
-        if rule.startswith('primary'):
-            return cvalue
         
 #------------------------------------------ orchestrator
-def orchestrator(conf_file, storename, verbose=False):
+def orchestrator(options, store, verbose=False):
     '''
     The orchestrator determines what to do from the option files and calls the right parser
     depending on the semantic file presence of absence
     '''
     try:
-        options = Options(conf_file)
-        store = RDFStore(storename)
         files = options.get_files()
         for f in files:
             if options.get_option(f, Options.SEMANTICS) != None:
                 semantic_csv_parser(options, f, store, verbose)
             else:
                 default_csv_parser(options, f, store, verbose)
-        return store
     except Exception as e:
         print(type(e))
         print(e)
@@ -334,7 +309,7 @@ def orchestrator(conf_file, storename, verbose=False):
         
 def test_orchestrator():
     #orchestrator('toto.ini')
-    orchestrator('csv2rdf.ini', 'ORCHESTRE', verbose=True)
+    orchestrator(Options('csv2rdf.ini'), RDFStore('ORCHESTRE'), verbose=True)
 
         
 #------------------------------------------ usage
@@ -369,6 +344,11 @@ def test_cases():
     test_RDFStore()
     test_default_csv_parser()
     test_orchestrator()
+    print('------------\nSecond test')
+    options = Options('csv2rdf2.ini')
+    store = RDFStore('Z_semantic')
+    orchestrator(options, store, False)
+    store.dump()
     print('------------\nTest end')
     
 
