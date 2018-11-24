@@ -43,10 +43,14 @@ class RDFNode():
             raise TypeError("Unrecognized type: " + str(type(ident)))
     def to_dot(self):
         return str(self.id), str(self.name)
+    def to_gml(self):
+        return self.id.int, str(self.name)
     def get_name(self):
         return self.name
     def get_id(self):
         return str(self.id)
+    def get_int_id(self):
+        return self.id.int
 
     
 class RDFRel(RDFNode):
@@ -64,6 +68,8 @@ class RDFRel(RDFNode):
             return self.source.get_id(), self.target.get_id(), str(self.name)
         else: # returns only the link
             return self.source.get_id(), self.target.get_id()
+    def to_gml(self):
+        return self.source.get_int_id(), self.target.get_int_id(), str(self.name)
     def get_source_id(self):
         return self.source.get_id()
     def get_target_id(self):
@@ -125,11 +131,11 @@ def add_rdf_graph_to_dot(dot, rdfgraph, mode=0):
 
 
 def create_gml_node_string(id, name):
-    return 'node [\n  id ' + id + '\n  label "' + name + '"\n]'
+    return 'node [\n  id ' + str(id) + '\n  label "' + name + '"\n]\n'
 
-def create_gml_rel_string(sourceid, destid, name):
+def create_gml_rel_string(sourceid, targetid, name):
     return 'edge [\n  label "' + name + '"\n' \
-           '  source ' + sourceid + '\n  target '+ targetid + '\n]'
+           '  source ' + str(sourceid) + '\n  target '+ str(targetid) + '\n]\n'
     
 
 def add_rdf_graph_to_gml(gmlfilename, rdfgraph):
@@ -143,13 +149,13 @@ def add_rdf_graph_to_gml(gmlfilename, rdfgraph):
     f = open(gmlfilename, 'w')
     f.write('graph [\n')
     for s, p, o in rdfgraph:
-        source = add_to_node_dict(RDFNode(s),node_dict)
+        source = add_to_nodes_dict(RDFNode(s),node_dict)
         target = add_to_nodes_dict(RDFNode(o),node_dict)
         add_to_rels_dict(RDFRel(p, source, target),rel_dict)
     for elem in node_dict.values():
-        f.write(create_gml_node_string(*elem.to_dot()))
+        f.write(create_gml_node_string(*elem.to_gml()))
     for elem in rel_dict.values():
-        f.write(create_gml_rel_string(*elem.to_dot(True)))
+        f.write(create_gml_rel_string(*elem.to_gml()))
     f.write(']\n')
     f.close()
 

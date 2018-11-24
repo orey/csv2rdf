@@ -6,7 +6,7 @@
 #============================================
 import getopt, sys, csv, configparser, os.path, traceback
 from rdflib import Graph, Literal, URIRef, RDF, BNode
-from rdf2graphviz import rdf_to_graphviz
+from rdf2graphviz import rdf_to_graphviz, add_rdf_graph_to_gml
 
 
 #------------------------------------------ Options
@@ -350,6 +350,7 @@ def test_cases():
     store = RDFStore('Z_semantic')
     orchestrator(options, store, False)
     store.dump()
+    add_rdf_graph_to_gml('Z_semantic.gml', store.get_store())
     print('------------\nTest end')
     
 
