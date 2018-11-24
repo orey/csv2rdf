@@ -48,6 +48,7 @@ class RDFNode():
     def get_id(self):
         return str(self.id)
 
+    
 class RDFRel(RDFNode):
     def __init__(self, ident, source, target):
         RDFNode.__init__(self, ident)
@@ -68,6 +69,7 @@ class RDFRel(RDFNode):
     def get_target_id(self):
         return self.target.get_id()
 
+    
 def print_rel_as_box(rel, dot):
     dot.node(rel.get_id(),rel.get_name(), shape='box')
     dot.edge(rel.get_source_id(), rel.get_id())
@@ -86,7 +88,8 @@ def add_to_nodes_dict(rdfnode, node_dict):
     else:
         node_dict[name] = rdfnode
         return node_dict[name]
-        
+
+    
 def add_to_rels_dict(rdfrel, rel_dict):
     '''
     We suppose that all relationships are unique, even if they have
@@ -94,6 +97,7 @@ def add_to_rels_dict(rdfrel, rel_dict):
     '''
     rel_dict[rdfrel.get_id()] = rdfrel
 
+    
 def add_rdf_graph_to_dot(dot, rdfgraph, mode=0):
     '''
     mode=0 (default): prints labels in edges
@@ -118,6 +122,37 @@ def add_rdf_graph_to_dot(dot, rdfgraph, mode=0):
         for elem in rel_dict.values():
             dot.edge(*elem.to_dot())
     return dot
+
+
+def create_gml_node_string(id, name):
+    return 'node [\n  id ' + id + '\n  label "' + name + '"\n]'
+
+def create_gml_rel_string(sourceid, destid, name):
+    return 'edge [\n  label "' + name + '"\n' \
+           '  source ' + sourceid + '\n  target '+ targetid + '\n]'
+    
+
+def add_rdf_graph_to_gml(gmlfilename, rdfgraph):
+    '''
+    Creates a GML file from the RDF file with the same assumptions
+    than the graphviz visual representation.
+    Can be used with Gephi
+    '''
+    node_dict = {}
+    rel_dict = {}
+    f = open(gmlfilename, 'w')
+    f.write('graph [\n')
+    for s, p, o in rdfgraph:
+        source = add_to_node_dict(RDFNode(s),node_dict)
+        target = add_to_nodes_dict(RDFNode(o),node_dict)
+        add_to_rels_dict(RDFRel(p, source, target),rel_dict)
+    for elem in node_dict.values():
+        f.write(create_gml_node_string(*elem.to_dot()))
+    for elem in rel_dict.values():
+        f.write(create_gml_rel_string(*elem.to_dot(True)))
+    f.write(']\n')
+    f.close()
+
     
 def print_store(store):
     # Iterate over triples in store and print them out.
