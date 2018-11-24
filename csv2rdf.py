@@ -111,7 +111,8 @@ def default_csv_parser(conf, f, store, verbose=False):
     '''
     delim = conf.get_option(f, Options.DELIMITER)
     try:
-        reader = csv.reader(open(f, "r"), delimiter=delim)
+        # CSV files may contain non UTF8 chars
+        reader = csv.reader(open(f, "r", encoding='utf-8', errors='ignore'), delimiter=delim)
 
         # predicates is used to store all headers of the first row but in a RDF manner
         # because they will be the predicate
@@ -202,7 +203,7 @@ def semantic_csv_parser(conf, f, store, verbose=False):
     soptions = {}
     try:
         # 1. Parse options
-        reader = csv.reader(open(semantic, 'r'), delimiter = conf.get_option(f, conf.SEM_DELIM))
+        reader = csv.reader(open(semantic, 'r', encoding='utf-8', errors='ignore'), delimiter = conf.get_option(f, conf.SEM_DELIM))
         for i, row in enumerate(reader):
             if len(row) != 2:
                 raise ValueError('Row #' + str(i+1) + ' does not have 3 flields: ' + str(row))
@@ -238,7 +239,7 @@ def semantic_csv_parser(conf, f, store, verbose=False):
         # 2. Parse file
         domain = conf.get_option(f, Options.DOMAIN)
         mytype = conf.get_option(f, Options.TYPE)
-        reader = csv.reader(open(f, 'r'), delimiter = conf.get_option(f, conf.DELIMITER))
+        reader = csv.reader(open(f, 'r', encoding='utf-8', errors='ignore'), delimiter = conf.get_option(f, conf.DELIMITER))
         for i, row in enumerate(reader):
             sys.stdout.write(str(i+1) + '|')
             # First row is skipped
