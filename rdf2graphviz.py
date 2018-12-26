@@ -237,7 +237,16 @@ def test4():
     dot.graph_attr['rankdir'] = 'LR'
     add_rdf_graph_to_dot(dot, store, 1)
     dot.render('test4.dot', view=True)
-    
+
+def test5():
+    store = Graph()
+    result = store.parse('22-rdf-syntax-ns-simplified.n3', format='n3')
+    print_store(store)
+    dot = Digraph(comment='test5')
+    dot.graph_attr['rankdir'] = 'LR'
+    add_rdf_graph_to_dot(dot, store, 1)
+    dot.render('test5.dot', view=True)
+
     
 def rdf_to_graphviz(store, name='default', mode=0):
     dot = Digraph(comment=name, format='pdf')
@@ -259,5 +268,7 @@ if __name__ == '__main__':
         test3()
     elif a == '4':
         test4()
+    elif a == '5':
+        test5()
     else:
         test1()
