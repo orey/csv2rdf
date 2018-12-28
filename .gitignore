@@ -111,3 +111,6 @@ venv.bak/
 *.dot
 *.csv
 *.ods
+resources/*.n3~
+//*.*~
+

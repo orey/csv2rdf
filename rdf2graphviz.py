@@ -5,7 +5,7 @@
 # License:        GPL v3
 #============================================
 
-import uuid, rdflib, sys
+import uuid, rdflib, sys, os, getopt
 
 from rdflib import Graph, Literal, BNode, RDF
 from rdflib.namespace import FOAF, DC
@@ -23,8 +23,11 @@ def analyze_uri(uri):
         print('Strange URI: ' + str(uri))
         return str(uri)
 
-
+    
 class RDFNode():
+    '''
+    This class is managing the representation of a RDF node.
+    '''
     def __init__(self, ident):
         self.id = uuid.uuid1()
         self.name = "void"
@@ -52,8 +55,11 @@ class RDFNode():
     def get_int_id(self):
         return self.id.int
 
-    
+
 class RDFRel(RDFNode):
+    '''
+    This class is representing the representation of a relationship. It is an extension of RDFNode.
+    '''
     def __init__(self, ident, source, target):
         RDFNode.__init__(self, ident)
         if type(source) != RDFNode:
@@ -77,6 +83,9 @@ class RDFRel(RDFNode):
 
     
 def print_rel_as_box(rel, dot):
+    ''''
+    This function is adding some extra representation to relationships.
+    '''
     dot.node(rel.get_id(),rel.get_name(), shape='box')
     dot.edge(rel.get_source_id(), rel.get_id())
     dot.edge(rel.get_id(), rel.get_target_id())
@@ -84,8 +93,8 @@ def print_rel_as_box(rel, dot):
 
 def add_to_nodes_dict(rdfnode, node_dict):
     '''
-    We suppose that the parser will create an instance of node for each
-    parse triple
+    Helper function to build the dict of node representations
+    We suppose that the parser will create an instance of node for each parse triple
     '''
     name = rdfnode.get_name()
     if name in node_dict:
@@ -98,8 +107,8 @@ def add_to_nodes_dict(rdfnode, node_dict):
     
 def add_to_rels_dict(rdfrel, rel_dict):
     '''
-    We suppose that all relationships are unique, even if they have
-    the same label
+    Helper function to build the dictionnary of relationship representations
+    We suppose that all relationships are unique, even if they have the same label
     '''
     rel_dict[rdfrel.get_id()] = rdfrel
 
@@ -181,94 +190,72 @@ def print_store(store):
     print(store.serialize(format="nt"))
     print("--- end: ntriples ---\n")
     
-def test1():
-    store = Graph()
-
-    # Bind a few prefix, namespace pairs for pretty output
-    store.bind("dc", DC)
-    store.bind("foaf", FOAF)
-
-    # Create an identifier to use as the subject for Donna.
-    donna = BNode()
-
-    # Add triples using store's add method.
-    store.add((donna, RDF.type, FOAF.Person))
-    store.add((donna, FOAF.nick, Literal("donna", lang="foo")))
-    store.add((donna, FOAF.name, Literal("Donna Fales")))
-    
-    print_store(store)
-    
-    # Dump store
-    store.serialize("test1.rdf", format="pretty-xml", max_depth=3)
-    
-    dot = Digraph(comment='Test1')
-    add_rdf_graph_to_dot(dot, store)
-    dot.render('test1.dot', view=True)
-    
-def test2():
-    store = Graph()
-    result = store.parse("http://www.w3.org/People/Berners-Lee/card")
-    print_store(store)
-
-    # Dump store
-    store.serialize("test2.rdf", format="turtle")
-    
-    dot = Digraph(comment='Test2')
-    add_rdf_graph_to_dot(dot, store)
-    dot.render('test2.dot', view=True)
-
-def test3():
-    store = Graph()
-    result = store.parse("http://www.w3.org/People/Berners-Lee/card")
-    print_store(store)
-
-    # Dump store
-    store.serialize("test3.rdf", format="turtle")
-    
-    dot = Digraph(comment='Test3')
-    add_rdf_graph_to_dot(dot, store, False)
-    dot.render('test3.dot', view=True)
-
-def test4():
-    store = Graph()
-    result = store.parse('22-rdf-syntax-ns.n3', format='n3')
-    print_store(store)
-    dot = Digraph(comment='test4')
-    dot.graph_attr['rankdir'] = 'LR'
-    add_rdf_graph_to_dot(dot, store, 1)
-    dot.render('test4.dot', view=True)
-
-def test5():
-    store = Graph()
-    result = store.parse('22-rdf-syntax-ns-simplified.n3', format='n3')
-    print_store(store)
-    dot = Digraph(comment='test5')
-    dot.graph_attr['rankdir'] = 'LR'
-    add_rdf_graph_to_dot(dot, store, 1)
-    dot.render('test5.dot', view=True)
-
     
 def rdf_to_graphviz(store, name='default', mode=0):
     dot = Digraph(comment=name, format='pdf')
     dot.graph_attr['rankdir'] = 'LR'
     add_rdf_graph_to_dot(dot, store, mode)
     dot.render(name + '.dot', view=True)
+
+
+def usage():
+    print('RDF to GraphViz utility')
+    print('Usage')
+    print('$ python3 rdf2graphviz.py -i [input_file_or_url] -o [output_dir] (other_options)')
+    print('-i or --input NAME: filename or URL')
+    print('-o or --output NAME: directory name. Default will be "./tests/"')    
+    print('Other options')
+    print('-f or --format: "xml", "n3", "ntriples" or other format supported by Python rdflib. Default format is "n3".')
+    print('-h or --help: usage')
+
+def build_name(input):
+    '''
+    This function takes the input of the command line and tries to build a name
+    '''
+    temp = input.split('/')[-1]
+    if not '\\' in temp:
+        return temp
+    else:
+        return temp.split('\\')[-1]
     
 if __name__ == '__main__':
-    print(sys.argv)
-    if len(sys.argv) != 2:
-        test1()
-        exit(1)
-    a = sys.argv[1]
-    if a == 1:
-        test1()
-    elif a == '2':
-        test2()
-    elif a == '3':
-        test3()
-    elif a == '4':
-        test4()
-    elif a == '5':
-        test5()
-    else:
-        test1()
+    try:
+        opts, args = getopt.getopt(sys.argv[1:],"hi:o:f:v", [])
+    except getopt.GetoptError as err:
+        print(err)
+        usage()
+        sys.exit(2)
+    input = None
+    outputdir = './tests'
+    myformat = 'n3'
+    verbose = False
+    for o, a in opts:
+        if o == "-v":
+            verbose = True
+        elif o in ("-h", "--help"):
+            usage()
+            sys.exit()
+        elif o in ("-i", "--input"):
+            input = a
+        elif o in ("-o", "--output"):
+            outputdir = a
+        elif o in ("-f", "--format"):
+            myformat = a
+        else:
+            assert False, "unhandled option"
+    # Check input
+    if input == None:
+        print("Input file or URL cannot be void.")
+        usage()
+        sys.exit()
+    name = build_name(input)
+    # Check output dir
+    if not os.path.exists(outputdir):
+        os.makedirs(outputdir)
+
+    store = Graph()
+    result = store.parse(input, format=myformat)
+    dot = Digraph(comment="RDF to Graphviz: " + name)
+    dot.graph_attr['rankdir'] = 'LR'
+    add_rdf_graph_to_dot(dot, store, 1)
+    dot.render(os.path.join(outputdir,name + '.dot'), view=True)
