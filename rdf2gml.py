@@ -31,12 +31,13 @@ def add_rdf_graph_to_gml(gmlfilename, rdfgraph):
     '''
     node_dict = {}
     rel_dict = {}
+    numbering = Numbering()
     f = open(gmlfilename, 'w')
     f.write('graph [\n')
     for s, p, o in rdfgraph:
-        source = add_to_nodes_dict(RDFNode(s),node_dict)
-        target = add_to_nodes_dict(RDFNode(o),node_dict)
-        add_to_rels_dict(RDFRel(p, source, target),rel_dict)
+        source = add_to_nodes_dict(RDFNode(s,numbering),node_dict)
+        target = add_to_nodes_dict(RDFNode(o,numbering),node_dict)
+        add_to_rels_dict(RDFRel(p, source, target,numbering),rel_dict)
     for elem in node_dict.values():
         f.write(create_gml_node_string(*elem.to_gml()))
     for elem in rel_dict.values():
@@ -44,6 +45,7 @@ def add_rdf_graph_to_gml(gmlfilename, rdfgraph):
     f.write(']\n')
     f.close()
 
+    
 def usage():
     print('RDF to GML utility')
     print('Usage')
@@ -95,6 +97,6 @@ if __name__ == '__main__':
     result = store.parse(input, format=myformat)
 
     #TODO replace with GML treatment
-    add_rdf_graph_to_gml(name + '.gml', store)
+    add_rdf_graph_to_gml(os.path.join(outputdir,name + '.gml'), store)
     
 

@@ -7,6 +7,8 @@
 import unittest, os
 
 from rdf2graphviz import *
+from rdf2gml      import *
+
 
 class TestRdf2Graphviz(unittest.TestCase):
     def test_graphviz_with_basic_data(self):
@@ -87,6 +89,20 @@ class TestRdf2Graphviz(unittest.TestCase):
             print(e)
             self.assertTrue(False)
 
+
+class TestRdf2Gml(unittest.TestCase):
+    def test_gml_basic(self):
+        try:
+            store = Graph()
+            result = store.parse('./resources/22-rdf-syntax-ns-simplified.n3', format='n3')
+            add_rdf_graph_to_gml('./tests/test5.gml', store)
+            self.assertTrue(True)
+        except Exception as e:
+            print(e)
+            self.assertTrue(False)
+                
+
+            
             
 if __name__ == '__main__':
     unittest.main()

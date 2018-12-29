@@ -22,12 +22,27 @@ def analyze_uri(uri):
         return str(uri)
 
     
+class Numbering:
+    def __init__(self):
+        self.number = 0
+    def get_next_number(self):
+        self.number += 1
+        return self.number
+
+    
 class RDFNode():
     '''
     This class is managing the representation of a RDF node.
     '''
-    def __init__(self, ident):
-        self.id = uuid.uuid1()
+    def __init__(self, ident, numbering=None):
+        # The default system is a uuid system which is converted to int when needed
+        # but when using an external numbering system, we have directly an int
+        self.numbering = None
+        if numbering == None:
+            self.id = uuid.uuid1()
+        else:
+            self.numbering = numbering
+            self.id = numbering.get_next_number()
         self.name = "void"
         if not isinstance(ident, rdflib.term.Identifier):
             raise TypeError("Unrecognized type: " + str(type(ident)))
@@ -45,21 +60,27 @@ class RDFNode():
     def to_dot(self):
         return str(self.id), str(self.name)
     def to_gml(self):
-        return self.id.int, str(self.name)
+        if self.numbering == None:
+            return self.id.int, str(self.name)
+        else:
+            return self.id, str(self.name)
     def get_name(self):
         return self.name
     def get_id(self):
         return str(self.id)
     def get_int_id(self):
-        return self.id.int
+        if self.numbering == None:        
+            return self.id.int
+        else:
+            return self.id
 
 
 class RDFRel(RDFNode):
     '''
     This class is representing the representation of a relationship. It is an extension of RDFNode.
     '''
-    def __init__(self, ident, source, target):
-        RDFNode.__init__(self, ident)
+    def __init__(self, ident, source, target, numbering=None):
+        RDFNode.__init__(self, ident, numbering)
         if type(source) != RDFNode:
             raise TypeError("Unrecognize type: " + str(type(source)))
         elif type(target) != RDFNode:
@@ -100,3 +121,4 @@ def add_to_rels_dict(rdfrel, rel_dict):
     We suppose that all relationships are unique, even if they have the same label
     '''
     rel_dict[rdfrel.get_id()] = rdfrel
+    
