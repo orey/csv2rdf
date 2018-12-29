@@ -1,6 +1,23 @@
-# rdflib-test
+# 'Data' is quite a vague name...
 
-Test of Python rdflib for various use cases
+However, this set of python tools have 2 purposes:
+
+  * Provide a simple set of tools to display RDF graphs
+  * Provide a simple set of tools to convert data into RDF graphs
+  
+For sure the combining of those 2 sets of tools enables to use RDF as a pivot format to explore linked data.
+
+## Basic data viz
+
+![Files](design.png)
+
+Python files and CLI
+
+## CSV Tools
+
+[To be written]
+
+-------
 
 ## rdf2graphviz comments
 
@@ -68,10 +85,4 @@ The grammar proposes the following semantic:
   * subject2|PN|S|Father
   * literal
 
-Must also manage void fields
-
-iconv -f utf-8 -t utf-8 -c file.txt
-
-Grep all unicode non characters with line numbers in front
-
-  * grep -naxv '.*' file.txt
+Note: the parser eliminates UTF8 errors.

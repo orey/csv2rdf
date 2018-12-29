@@ -95,8 +95,6 @@ if __name__ == '__main__':
 
     store = Graph()
     result = store.parse(input, format=myformat)
-
-    #TODO replace with GML treatment
     add_rdf_graph_to_gml(os.path.join(outputdir,name + '.gml'), store)
     
 
