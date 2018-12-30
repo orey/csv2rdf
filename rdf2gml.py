@@ -14,12 +14,15 @@ from rdflib import Graph, Literal, BNode, RDF
 from rdflib.namespace import FOAF, DC
 
 
+def filter_name(name):
+    return name.replace('&', 'and')
+
 def create_gml_node_string(id, name):
-    return 'node [\n  id ' + str(id) + '\n  label "' + name + '"\n]\n'
+    return 'node [\n  id ' + str(id) + '\n  label "' + filter_name(name) + '"\n]\n'
 
 
 def create_gml_rel_string(sourceid, targetid, name):
-    return 'edge [\n  label "' + name + '"\n' \
+    return 'edge [\n  label "' + filter_name(name) + '"\n' \
            '  source ' + str(sourceid) + '\n  target '+ str(targetid) + '\n]\n'
     
 

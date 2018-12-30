@@ -5,8 +5,10 @@
 # License:        GPL v3
 #============================================
 import getopt, sys, csv, configparser, os.path, traceback
+
 from rdflib import Graph, Literal, URIRef, RDF, BNode
-from rdf2graphviz import rdf_to_graphviz, add_rdf_graph_to_gml
+
+from rdf2graphviz import *
 
 
 #------------------------------------------ Options
@@ -52,12 +54,6 @@ class Options():
             print('Section: ' + sec)
             for opt in self.config.options(sec):
                 print('Option: ' + opt)
-
-
-def test_Options():
-    options = Options('csv2rdf.ini')
-    options.print()
-    print(options.get_files())
     
 
 #------------------------------------------ RDFStore
@@ -79,12 +75,6 @@ class RDFStore():
         if verbose:
             print('Store dumped')
 
-def test_RDFStore():
-    store = RDFStore('test_RDFStore')
-    subject = BNode()
-    object = URIRef('https://www.test.urg/sem#oups')
-    store.add((subject, RDF.type, object))
-    store.dump(True)
 
 #------------------------------------------ default_csv_parser
 def format_predicate(pred):
@@ -97,10 +87,6 @@ def format_predicate(pred):
     return new
 
     
-def test_pred():
-    print(format_predicate('I am a big-boy'))
-
-
 def default_csv_parser(conf, f, store, verbose=False):
     '''
     In case no semantics are provided, this is the default parsing procedure
@@ -145,14 +131,6 @@ def default_csv_parser(conf, f, store, verbose=False):
         print(e.args)
         print(e)
   
-        
-def test_default_csv_parser():
-    test_pred()
-    options = Options('csv2rdf.ini')
-    store = RDFStore('TEST_dump')
-    default_csv_parser(options, 'test1.csv', store, True)
-    store.dump(True)
-
 
 #------------------------------------------ semantic_csv_parser
 class SGrammar():
@@ -288,6 +266,7 @@ def semantic_csv_parser(conf, f, store, verbose=False):
         print(type(e), e, e.args)
         traceback.print_exc()
 
+# TODO: close the file
         
 #------------------------------------------ orchestrator
 def orchestrator(options, store, verbose=False):
@@ -306,11 +285,6 @@ def orchestrator(options, store, verbose=False):
         print(type(e))
         print(e)
         sys.exit(1)
-
-        
-def test_orchestrator():
-    #orchestrator('toto.ini')
-    orchestrator(Options('csv2rdf.ini'), RDFStore('ORCHESTRE'), verbose=True)
 
         
 #------------------------------------------ usage
@@ -336,23 +310,6 @@ def to_int(a, range):
             return 0
     except ValueError:
         return 0
-
-
-def test_cases():
-    print('**************************************************')
-    print('Test start\n------------')
-    test_Options()
-    test_RDFStore()
-    test_default_csv_parser()
-    test_orchestrator()
-    print('------------\nSecond test')
-    options = Options('csv2rdf2.ini')
-    store = RDFStore('Z_semantic')
-    orchestrator(options, store, False)
-    store.dump()
-    add_rdf_graph_to_gml('Z_semantic.gml', store.get_store())
-    print('------------\nTest end')
-    
 
 
 def main():
