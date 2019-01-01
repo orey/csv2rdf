@@ -65,7 +65,7 @@ class TestRdf2Graphviz(unittest.TestCase):
     def test_graphviz_with_rdf_syntax(self):
         try:
             store = Graph()
-            result = store.parse('./resources/22-rdf-syntax-ns.n3', format='n3')
+            result = store.parse('./resources/22-rdf-syntax-ns.ttl', format='turtle')
             print_store(store)
             dot = Digraph(comment='test3')
             dot.graph_attr['rankdir'] = 'LR'
@@ -79,7 +79,7 @@ class TestRdf2Graphviz(unittest.TestCase):
     def test_graphviz_with_simplified_rdf_syntax(self):
         try:
             store = Graph()
-            result = store.parse('./resources/22-rdf-syntax-ns-simplified.n3', format='n3')
+            result = store.parse('./resources/22-rdf-syntax-ns-simplified.ttl', format='turtle')
             print_store(store)
             dot = Digraph(comment='test4')
             dot.graph_attr['rankdir'] = 'LR'
@@ -95,7 +95,7 @@ class TestRdf2Gml(unittest.TestCase):
     def test_gml_basic(self):
         try:
             store = Graph()
-            result = store.parse('./resources/22-rdf-syntax-ns-simplified.n3', format='n3')
+            result = store.parse('./resources/22-rdf-syntax-ns-simplified.ttl', format='turtle')
             add_rdf_graph_to_gml('./tests/test5.gml', store)
             self.assertTrue(True)
         except Exception as e:
