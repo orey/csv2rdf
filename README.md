@@ -9,7 +9,7 @@ For sure the combining of those 2 sets of tools enables to use RDF as a pivot fo
 
 ## Basic data viz
 
-![Files](design.png)
+![Files](design/design.png)
 
 Python files and CLI
 
