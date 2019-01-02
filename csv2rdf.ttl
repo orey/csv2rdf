@@ -9,9 +9,25 @@
 @prefix  xml: <http://www.w3.org/XML/1998/namespace> .
 @prefix  xsd: <http://www.w3.org/2001/XMLSchema#> .
 
-:csvfile a rdf:Resource ;
-	 rdfs:SubClassOf rdfs:Class ;
-	 :basic_type rdf:type ;
-	 :predicate_prefix rdf:Literal ; 
+:basic_type a rdf:Property ;
+	    rdfs:isDefinedBy <https://github.com/orey/data/csv2rdf.ttl#> ;
+	    rdfs:label "basic_type" ;
+	    rdfs:comment "Indicates the basic type associated to a CSV file." ;
+	    rdfs:range :csvfile ;
+	    rdfs:domain rdfs:Class.
+
+:file a rdf:Resource ;
+      :filename rdf:Literal ;
+      :directory rdf:Literal .
+
+:csvfile a :file ;
+	 :basic_type rdfs:Class ;
+	 :predicate_prefix rdf:Literal ;
+	 :delimiter rdf:Literal ;
+	 :semantic :file ;
+	 rdfs:isDefinedBy <https://github.com/orey/data/csv2rdf.ttl#> ;
+	 rdfs:label "csv_file" ;
+	 rdfs:comment "Describes the CSV file and the required parameters" .
+	 
 
 
