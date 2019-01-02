@@ -62,24 +62,26 @@ def rdf_to_graphviz(store, name='default', mode=0):
 def usage():
     print('RDF to GraphViz utility')
     print('Usage')
-    print('$ python3 rdf2graphviz.py -i [input_file_or_url] -o [output_dir] (other_options)')
-    print('-i or --input NAME: filename or URL')
-    print('-o or --output NAME: directory name. Default will be "./tests/"')    
+    print('$ python3 rdf2graphviz.py -i [INPUT] -o [OUTPUT] (other_options)')
+    print('    * -i [INPUT] or --input [INPUT]: filename or URL')
+    print('    * -o [OUTPUT] or --output [OUTPUT]: directory name. Default will be "./tests/"')    
     print('Other options')
-    print('-f or --format: "xml", "n3", "ntriples" or other format supported by Python rdflib. Default format is "n3".')
+    print('    * -f [FORMAT] or --format [FORMAT]: input format, like "xml", "n3", "ntriples", "turtle" or other format supported by Python rdflib. If no format is provided, rdflib will try to parse the file.')
+    print('    * -r [RENDERING] or --render [RENDERING]: format supported by Graphviz. Default is "png".')
     print('-h or --help: usage')
 
         
 if __name__ == '__main__':
     try:
-        opts, args = getopt.getopt(sys.argv[1:],"hi:o:f:v", [])
+        opts, args = getopt.getopt(sys.argv[1:],"hi:o:f:r:v", [])
     except getopt.GetoptError as err:
         print(err)
         usage()
         sys.exit(2)
     input = None
     outputdir = './tests'
-    myformat = 'n3'
+    myformat = None
+    myrendering = 'png'
     verbose = False
     for o, a in opts:
         if o == "-v":
@@ -93,6 +95,8 @@ if __name__ == '__main__':
             outputdir = a
         elif o in ("-f", "--format"):
             myformat = a
+        elif o in ("-r", "--render"):
+            myrendering = a
         else:
             assert False, "unhandled option"
     # Check input
@@ -106,8 +110,11 @@ if __name__ == '__main__':
         os.makedirs(outputdir)
 
     store = Graph()
-    result = store.parse(input, format=myformat)
-    dot = Digraph(comment="RDF to Graphviz: " + name)
+    if myformat == None:
+        result = store.parse(input, format='turtle')
+    else:
+        result = store.parse(input, format=myformat)
+    dot = Digraph(comment="RDF to Graphviz: " + name, format=myrendering)
     dot.graph_attr['rankdir'] = 'LR'
     add_rdf_graph_to_dot(dot, store, 1)
     dot.render(os.path.join(outputdir,name + '.dot'), view=True)
