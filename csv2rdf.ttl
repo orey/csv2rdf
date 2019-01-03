@@ -17,6 +17,10 @@
 	    rdfs:domain rdfs:Class.
 
 :file a rdf:Resource ;
+      rdfs:isDefinedBy <https://github.com/orey/data/csv2rdf.ttl#> ;
+      rdfs:label "file" ;
+      rdfs:comment "Root class for files. Used to define CSV input files and configuration files." ;
+            
       :filename rdf:Literal ;
       :directory rdf:Literal .
 
