@@ -114,5 +114,5 @@ venv.bak/
 resources/*.n3~
 //*.*~
 *.gml
-
+//*.py~
 

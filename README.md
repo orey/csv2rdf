@@ -98,3 +98,9 @@ Examples:
   * column_p;ignore
 
 Note: the parser eliminates UTF8 errors.
+
+----
+
+See also:
+
+  * [RDF design patterns](RDF_DESIGN_PATTERNS) (work in progress)

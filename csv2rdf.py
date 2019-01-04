@@ -8,7 +8,7 @@ import getopt, sys, csv, configparser, os.path, traceback
 
 from rdflib import Graph, Literal, URIRef, RDF, BNode
 
-from rdf2graphviz import *
+from rdfviz import *
 
 
 #------------------------------------------ Options
