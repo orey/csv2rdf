@@ -103,4 +103,4 @@ Note: the parser eliminates UTF8 errors.
 
 See also:
 
-  * [RDF design patterns](RDF_DESIGN_PATTERNS) (work in progress)
+  * [RDF design patterns](https://github.com/orey/graphapps/blob/master/rdf-design-patterns.md) (work in progress)
