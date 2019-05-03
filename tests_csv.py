@@ -4,12 +4,16 @@
 # Date:           December 2018
 # License:        GPL v3
 #============================================
-import unittest, os
+import unittest, os, sys
 
+from rdflib import Graph, Literal, URIRef, RDF, BNode
+
+sys.path.insert(0, '/home/olivier/Documents/github/rdftools')
 from csv2rdf import *
 
-import rdfviz
-from rdfviz import *
+#sys.path.insert(0, '/home/olivier/Documents/github/rdfviz')
+#from rdfviz import *
+
 
 class TestCsv2Rdf(unittest.TestCase):
     def test_Options(self):
@@ -24,7 +28,7 @@ class TestCsv2Rdf(unittest.TestCase):
 
     def test_RDFStore(self):
         try:
-            store = RDFStore('test_RDFStore')
+            store = RDFStore('./output/test_RDFStore')
             subject = BNode()
             object = URIRef('https://www.test.urg/sem#oups')
             store.add((subject, RDF.type, object))
@@ -46,7 +50,7 @@ class TestCsv2Rdf(unittest.TestCase):
         try:
             self.test_pred()
             options = Options('./tests/csv2rdf.ini')
-            store = RDFStore('TEST_dump')
+            store = RDFStore('./output/TEST_dump')
             default_csv_parser(options, './tests/test1.csv', store, True)
             store.dump(True)
             self.assertTrue(True)
@@ -57,43 +61,15 @@ class TestCsv2Rdf(unittest.TestCase):
     def test_orchestrator(self):
         try:
             #orchestrator('toto.ini')
-            orchestrator(Options('./tests/csv2rdf.ini'), RDFStore('ORCHESTRE'), verbose=True)
+            store = RDFStore('./output/ORCHESTRE')
+            orchestrator(Options('./tests/csv2rdf.ini'), store, verbose=True)
+            store.dump(True)
             self.assertTrue(True)
         except Exception as e:
             print(e)
             self.assertTrue(False)
 
 
-class TestCsv2RdfWithGml(unittest.TestCase):
-    def test_with_gml_output(self):
-        try:
-            options = Options('./tests/csv2rdf2.ini')
-            store = RDFStore('Z_semantic')
-            orchestrator(options, store, False)
-            store.dump()
-            add_rdf_graph_to_gml('Z_semantic.gml', store.get_store())
-            self.assertTrue(True)
-        except Exception as e:
-            print(e)
-            self.assertTrue(False)
-
-            
-class TestCsv2RdfWithGml(unittest.TestCase):
-    def test_with_gml_output(self):
-        try:
-            options = Options('csv2rdf2.ini')
-            if not os.path.exists('./tests'):
-                os.makedirs('./tests')
-            store = RDFStore('./tests/Z_semantic')
-            orchestrator(options, store, False)
-            store.dump()
-            rdf2gml.add_rdf_graph_to_gml('./tests/Z_semantic.gml', store.get_store())
-            self.assertTrue(True)
-        except Exception as e:
-            print(e)
-            self.assertTrue(False)
-
-            
 if __name__ == '__main__':
     unittest.main()
     

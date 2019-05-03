@@ -8,7 +8,8 @@ import getopt, sys, csv, configparser, os.path, traceback
 
 from rdflib import Graph, Literal, URIRef, RDF, BNode
 
-from rdfviz import *
+sys.path.insert(0, '../../rdfviz')
+import rdfviz
 
 
 #------------------------------------------ Options
@@ -371,3 +372,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
