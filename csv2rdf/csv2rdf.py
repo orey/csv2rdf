@@ -8,9 +8,6 @@ import getopt, sys, csv, configparser, os.path, traceback
 
 from rdflib import Graph, Literal, URIRef, RDF, BNode
 
-#sys.path.insert(0, '../../rdfviz')
-#import rdfviz
-
 
 #------------------------------------------ Options
 class Options():
@@ -294,10 +291,9 @@ def orchestrator(options, store, verbose=False):
 #------------------------------------------ usage
 def usage():
     print("Utility to transform CSV files into RDF files")
-    print("Usage: \n $ csv2rdf -o OPTIONS.ini [-v]")
-    print("$ csv2rdf -h")
+    print("Usage: \n $ csv2rdf -o [OPTIONS.ini] [-v]")
     print("Options:")
-    print('"-o": If "-o OPTION.ini" is not provided, "csv2rdf.ini" will be searched for')
+    print('==> "-o": [OPTION.ini] is an option file.')
     sys.exit(0)
 
 
@@ -319,16 +315,15 @@ def to_int(a, range):
 def main():
     try:
         # Option 't' is a hidden option
-        opts, args = getopt.getopt(sys.argv[1:], "ohvt",
+        opts, args = getopt.getopt(sys.argv[1:], "ohv",
                                    ["options=", "display=", \
-                                    "semantic=", "help", "verbose", "test"])
+                                    "semantic=", "help", "verbose"])
     except getopt.GetoptError:
         # print help information and exit:
         usage()
         sys.exit(2)
     options = None
     verbose = False
-    test    = False
     for o, a in opts:
         if o == "-v":
             verbose = True
@@ -337,29 +332,16 @@ def main():
             sys.exit()
         if o in ("-o", "--options"):
             options = a
-        if o in ('-t', '--test'):
-            test = True
-    # Test scenario
-    if test:
-        test_cases()
-        sys.exit(0)
-
             
     # default option file name if no options are provided
     if options == None:
-        options = 'csv2rdf.ini'
-#    if myfile == None:
-#        usage();
-#        sys.exit(1)
-    # We have the csv file
+        usage()
+        sys.exit()
     opt = Options(options)
 
     store = RDFStore(myfile.split('.')[0])
 
     conf = Config(myfile, opt, verbose)
-    if test:
-        conf.print()
-        test_pred()
     if semantic != None:
         soptions = Semantic(semantic, verbose)
         soptions.print()

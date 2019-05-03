@@ -1,8 +1,37 @@
 # CSV To RDF Converter
 
+This program is a utility to transform CSV files into RDF files. It has 2 modes:
+
+  * A standard mode without semantic grammar,
+  * A mode with a semantic grammar
+
+
 ## Usage
 
+```
+$ csv2rdf -o [OPTIONS.ini] [-v]
+```
 
+Options:
+
+  * "-o": [OPTION.ini] is an option file.
+
+## Sample of option file
+
+```
+[./tests/test1.csv]
+domain = https://www.example.com/rdf/design#
+type = ConfigurationItem
+predicate_prefix = CI_
+delimiter = ;
+
+[./tests/test2.csv]
+domain = https://www.example.com/rdf/design#
+type = ConfigurationItem
+predicate_prefix = CI_
+delimiter = ;
+semantics = ./tests/semantics.csv
+```
 
 
 ## CSV To RDF Comments
