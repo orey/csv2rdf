@@ -17,6 +17,9 @@ from csv2rdf import *
 
 class TestCsv2Rdf(unittest.TestCase):
     def test_Options(self):
+        '''
+        Objective is to read the config file
+        '''
         try:
             options = Options('./tests/csv2rdf.ini')
             options.print()
@@ -26,7 +29,11 @@ class TestCsv2Rdf(unittest.TestCase):
             print(e)
             self.assertTrue(False)
 
+
     def test_RDFStore(self):
+        '''
+        The objective is to dump a very simple store
+        '''
         try:
             store = RDFStore('./output/test_RDFStore')
             subject = BNode()
@@ -39,6 +46,9 @@ class TestCsv2Rdf(unittest.TestCase):
             self.assertTrue(False)
             
     def test_pred(self):
+        '''
+        The objective is to test the format predicate function
+        '''
         try:
             print(format_predicate('I am a big-boy'))
             self.assertTrue(True)
@@ -47,6 +57,9 @@ class TestCsv2Rdf(unittest.TestCase):
             self.assertTrue(False)
 
     def test_default_csv_parser(self):
+        '''
+        The objective is to test the default parser
+        '''
         try:
             self.test_pred()
             options = Options('./tests/csv2rdf.ini')
@@ -59,6 +72,10 @@ class TestCsv2Rdf(unittest.TestCase):
             self.assertTrue(False)
 
     def test_orchestrator(self):
+        '''
+        The objective is to test the orchestrator
+        Warning this test cumulates both files in the same store
+        '''
         try:
             #orchestrator('toto.ini')
             store = RDFStore('./output/ORCHESTRE')
@@ -69,6 +86,20 @@ class TestCsv2Rdf(unittest.TestCase):
             print(e)
             self.assertTrue(False)
 
+class TestFullSemantics(unittest.TestCase):
+    def test_FullSemantics(self):
+        '''
+        Objective is to read the config filetest the full semantics
+        '''
+        try:
+            options = Options('./tests/csv2rdf2.ini')
+            store = RDFStore('./output/Full_Semantic_CI_Catalog')
+            orchestrator(options, store)
+            store.dump(True)
+            self.assertTrue(True)
+        except Exception as e:
+            print(e)
+            self.assertTrue(False)
 
 if __name__ == '__main__':
     unittest.main()
