@@ -4,6 +4,8 @@
 # Date:           November 2018
 # License:        GPL v3
 #============================================
+#!/usr/bin/env python3
+
 import getopt, sys, csv, configparser, os.path, traceback
 
 from rdflib import Graph, Literal, URIRef, RDF, BNode

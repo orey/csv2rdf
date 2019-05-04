@@ -4,15 +4,13 @@
 # Date:           December 2018
 # License:        GPL v3
 #============================================
+#!/usr/bin/env python3
+
 import unittest, os, sys
 
 from rdflib import Graph, Literal, URIRef, RDF, BNode
 
-sys.path.insert(0, '/home/olivier/Documents/github/rdftools')
 from csv2rdf import *
-
-#sys.path.insert(0, '/home/olivier/Documents/github/rdfviz')
-#from rdfviz import *
 
 
 class TestCsv2Rdf(unittest.TestCase):
