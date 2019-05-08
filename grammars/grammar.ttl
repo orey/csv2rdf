@@ -1,0 +1,48 @@
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix ga:   <https://github.com/orey/graphapps#> .
+@prefix cr:   <https://github.com/orey/csv2rdf#> .
+
+ga:Line a rdf:Seq ;
+        rdf:_1 cr:column_name ;
+        rdf:_2 cr:sep1 ;
+        rdf:_3 cr:command .
+
+cr:column_name a ga:Identifier .
+
+cr:sep1 a ga:Separator ;
+        rdf:value ";" .
+
+cr:command a rdf:Alt ;
+           rdf:_1 cr:expr1 ;
+           rdf:_2 cr:expr2 ;
+           rdf:_3 cr:expr3 .
+
+cr:expr1 a rdf:Seq ;
+         rdf:_1 "subject1" ;
+         rdf:_2 cr:sep2 ;
+         rdf:_3 cr:type .
+
+cr:sep2 a ga:Separator ;
+        rdf:value "|" .
+
+cr:expr2 a rdf:Seq ;
+         rdf:_1 "subject2" ;
+         rdf:_2 cr:sep2 ;
+         rdf:_3 cr:type ;
+         rdf:_4 cr:sep2 ;
+         rdf:_5 cr:direction ;
+         rdf:_6 cr:sep2 ;
+         rdf:_7 cr:name .
+
+cr:type a ga:Identifier .
+
+cr:name a ga:Identifier .
+
+cr:direction a rdf:Alt ;
+             rdf:_1 "S" ;
+             rdf:_2 "R" .
+
+cr:expr3 rdf:value "ignore" .
+
+
