@@ -14,14 +14,22 @@ rule
     ;
 
 command
-    : 'subject1' , '|' , identifier
-    | 'subject2' , '|' , identifier , '|' , direction , '|' , identifier EOL
+    : 'subject1' , '|' , type EOL
+    | 'subject2' , '|' , type , '|' , direction , '|' , name EOL
     | ignore
+    ;
+
+type
+    : identifier
     ;
 
 direction
     : 's'
     | 'r'
+    ;
+
+name
+    : identifier
     ;
 
 identifier
