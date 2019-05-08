@@ -1,10 +1,9 @@
 @prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
-@prefix ga:   <https://github.com/orey/graphapps#> .
-@prefix cr:   <https://github.com/orey/csv2rdf#> .
+@prefix ga:   <https://github.com/orey/csv2rdf/grammars/meta-grammar.ttl#> .
+@prefix cr:   <https://github.com/orey/csv2rdf/grammars/grammar.ttl#> .
 
-ga:Line a rdf:Seq ;
-        rdf:_1 cr:column_name ;
+ga:Line rdf:_1 cr:column_name ;
         rdf:_2 cr:sep1 ;
         rdf:_3 cr:command .
 

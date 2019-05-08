@@ -2,7 +2,7 @@
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix owl:  <http://www.w3.org/2002/07/owl#> .
 @prefix dc:   <http://purl.org/dc/elements/1.1/> .
-@prefix ga:   <https://github.com/orey/graphapps#> .
+@prefix ga:   <https://github.com/orey/graphapps/grammars/meta-grammar.ttl#> .
 
 
 <https://github.com/orey/graphapps#> a owl:Ontology ;
@@ -10,9 +10,14 @@
     dc:description "Basic primitives" .
 
 
-ga:Line
+ga:Line a rdf:Seq ;
+        rdfs:isDefinedBy <https://github.com/orey/graphapps/grammars/meta-grammar.ttl#> ;
+        rdfs:comment "The line to parse must be redeclared in the grammar file." .
 
-ga:Identifier
+ga:Identifier a rdfs:label ;
+              rdfs:isDefinedBy <https://github.com/orey/graphapps/grammars/meta-grammar.ttl#> ;
+              rdfs:comment "".
 
-ga:Separator
+ga:Separator a rdfs:label ;
+             rdfs:isDefinedBy <https://github.com/orey/graphapps/grammars/meta-grammar.ttl#>
 
