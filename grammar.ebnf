@@ -1,0 +1,33 @@
+(* -----------------------------------------------------*)
+(* Grammar for the generation of triples from CSV files *)
+(* Author: O. Rey                                       *)
+(* Creation date: May 8 2019                            *)
+(* License: GPL V3                                      *)
+(* -----------------------------------------------------*)
+
+rules
+    : rule+
+    ;
+
+rule
+    : column_name ';' command
+    ;
+
+command
+    : 'subject1' , '|' , identifier
+    | 'subject2' , '|' , identifier , '|' , direction , '|' , identifier EOL
+    | ignore
+    ;
+
+direction
+    : 's'
+    | 'r'
+    ;
+
+identifier
+    : [a-z] , { [a-z] | [0-9] | '_' }
+    ;
+
+EOL
+    : '\n'
+    | '\r' , '\n'
