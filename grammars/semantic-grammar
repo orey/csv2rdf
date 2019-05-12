@@ -1,0 +1,57 @@
+#----------------------------------------------------------
+# Turtle version of the gammar used in the semantic conversion
+# Author: O. Rey
+# Creation date: May 2019
+# License: GPL v3
+# Warning: this file is an attempt that is not used yet
+#----------------------------------------------------------
+
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix ga:   <https://github.com/orey/graphapps/grammar#> .
+
+@prefix cr:   <https://github.com/orey/csv2rdf/grammars/semantic-grammar#> .
+
+cr:Line a rdf:Seq ;
+        rdf:_1 cr:ColumnName ;
+        rdf:_2 cr:Sep1 ;
+        rdf:_3 cr:Command .
+
+cr:ColumnName a ga:Identifier .
+
+cr:Sep1 a ga:Separator ;
+        rdf:value ";" .
+
+cr:Command a rdf:Alt ;
+           rdf:_1 cr:Expr1 ;
+           rdf:_2 cr:Expr2 ;
+           rdf:_3 cr:Expr3 .
+
+cr:Expr1 a rdf:Seq ;
+         rdf:_1 "subject1" ;
+         rdf:_2 cr:Sep2 ;
+         rdf:_3 cr:Type .
+
+cr:Sep2 a ga:Separator ;
+        rdf:value "|" .
+
+cr:Expr2 a rdf:Seq ;
+         rdf:_1 "subject2" ;
+         rdf:_2 cr:Sep2 ;
+         rdf:_3 cr:Type ;
+         rdf:_4 cr:Sep2 ;
+         rdf:_5 cr:Direction ;
+         rdf:_6 cr:Sep2 ;
+         rdf:_7 cr:Name .
+
+cr:Type a ga:Identifier .
+
+cr:Name a ga:Identifier .
+
+cr:Direction a rdf:Alt ;
+             rdf:_1 "S" ;
+             rdf:_2 "R" .
+
+cr:Expr3 rdf:value "ignore" .
+
+
