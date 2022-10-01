@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 from distutils.core import setup
 
 with open("README.md", 'r') as f:
@@ -15,6 +13,5 @@ setup(name='csv2rdf',
     author_email='rey.olivier@gmail.com',
     url='https://github.com/orey/csv2rdf',
     packages=['csv2rdf'],
-    install_requires=requirements,
 )
 
