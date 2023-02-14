@@ -42,6 +42,10 @@ Vocabulary hypothesis: triples are decomposed in subject, predicate, object. Sub
 
 Despite the fact that there may be lists in some fields, we'll try not to use any blank node concept.
 
+### Principle
+
+![Principle](principle.png)
+
 ### Grammar
 
 The semantic parser works with a semantic simplistic grammar. The idea of this grammar is to identify how the 3 following informations should be dealt with:
