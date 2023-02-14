@@ -1,0 +1,66 @@
+WBS;ignore
+Doc Type;ignore
+Part number;subject1|PN
+Issue;ignore
+Father parts;subject2|PN|R|Father_of
+CI before;subject2|PN|R|Is_before
+Title;literal
+CI type;ignore
+Status;ignore
+Creation Date;ignore
+Released Date;ignore
+Usage;ignore
+CI characteristic;ignore
+Substitute;ignore
+Des group;subject2|Group|R|Contains
+MOE;ignore
+SDU;ignore
+APPLICABILITY;ignore
+SMR;ignore
+SAP;ignore
+Conf;ignore
+TDE below;ignore
+ADU Father;subject2|PN|R|ADU_father_of
+ECR;ignore
+ECP;ignore
+ECO;ignore
+ECO;ignore
+ECO links;ignore
+NOT ECO;ignore
+Part Effectivity EC175-B;ignore
+Part Effectivity Z15F;ignore
+Part Effectivity Z15 Shipset;ignore
+Part Effectivity EC175-B1;ignore
+EC175-B from;ignore
+EC175-B to;ignore
+EC175-B1 from;ignore
+EC175-B1 to;ignore
+Average Weight;ignore
+Weighed Weight 1;ignore
+Weighed Weight 2;ignore
+Weighed Weight 3;ignore
+Weighed Weight 4;ignore
+Weighed Weight 5;ignore
+Weighed Weight 6;ignore
+Weighed Weight 7;ignore
+Weighed Weight 8;ignore
+Weighed Weight 9;ignore
+Weighed Weight 10;ignore
+Weighed Weight 11;ignore
+Weighed Weight 12;ignore
+Weighed Weight 13;ignore
+Weighed Weight 14;ignore
+Weighed Weight 15;ignore
+WB Weight;ignore
+Auto Calculated Weight;ignore
+Calculated Weight;ignore
+Estimated Weight;ignore
+COG X;ignore
+COG Y;ignore
+COG Z;ignore
+Auto Calculated COG X;ignore
+Auto Calculated COG Y;ignore
+Auto Calculated COG Z;ignore
+WB COG X;ignore
+WB COG Y;ignore
+WB COG Z;ignore
