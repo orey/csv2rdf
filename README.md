@@ -46,6 +46,30 @@ Despite the fact that there may be lists in some fields, we'll try not to use an
 
 ![Principle](principle.png)
 
+## Translation in semantic web
+
+Here is a sample of interpretation that wa can have reading a CSV file.
+
+The table is containing lines of `ConceptName`:
+```
+1. Li a ConceptName .
+```
+
+Depending on the value in the cell, if the value is an object:
+```
+2. Cij a Kj .
+3. Cij Kj Li .
+or
+3. Li Kj Cij .
+```
+
+If the value oi the cell is a web semantic value:
+```
+3. Li kJ Cij .
+```
+
+(Cij does not have a type).
+
 ### Grammar
 
 The semantic parser works with a semantic simplistic grammar. The idea of this grammar is to identify how the 3 following informations should be dealt with:
