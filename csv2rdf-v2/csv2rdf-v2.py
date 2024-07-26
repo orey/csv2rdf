@@ -1,59 +1,88 @@
 #============================================
 # File name:      csv2rdf.py
 # Author:         Olivier Rey
-# Date:           July 2024
+# Date:           November 2018
 # License:        GPL v3
 #============================================
 #!/usr/bin/env python3
 
-import getopt, sys, csv, configparser, os.path, traceback
+import getopt, sys, csv, configparser, os.path, traceback, time, datetime
 
 from rdflib import Graph, Literal, URIRef, RDF, BNode
 
+MY_RDF_STORE = "rdf_store.rdf"
+
 
 #------------------------------------------ Options
+class Source():
+    def __init__(self, name, file, domain, type, prefix, delim, active):
+        self.name = name
+        self.file = file
+        self.domain = domain
+        self.type = type
+        self.prefix = prefix
+        self.delim = delim
+        self.semantic = False
+        self.active = active
+    def setSemantic(self, semanticfile):
+        self.semantic = True
+        self.semanticfile = semanticfile
+    def print(self):
+        print("-----------")
+        print("Source: " +  self.name)
+        print("File: " + self.file)
+        print("Domain: " + self.domain)
+        print("Type: " + self.type)
+        print("Prefix: " + self.prefix)
+        print("Delim: " + self.delim)
+        if self.semantic:
+            print("Semantics: " + self.semanticfile)
+
 class Options():
     '''
     This class reads the option file that is acting as a command file.
     It is managing several files or several times the same file.
     '''
     # Mandatory fields per csv file
+    FILE = 'file'
     DOMAIN = 'domain'
     TYPE = 'type'
     PREFIX = 'predicate_prefix'
     DELIMITER = 'delimiter'
+    ACTIVE = 'active'
 
     # Optional fields
     SEMANTICS = 'semantics'
-    SEM_DELIM = 'semantics_delimiter'
-    DEFAULT_SEM_DELIM = ';'
     
     def __init__(self, filename):
         if not os.path.isfile(filename):
             raise FileNotFoundError('File "' + filename + '" not found.')
         self.filename = filename
-        self.config = configparser.ConfigParser()
-        self.config.read(filename)
-        self.sections = self.config.sections()
-        self.filenb = len(self.sections)
-    def get_files(self):
-        return self.sections
-    def get_option(self, datafile, key):
-        if self.config.has_section(datafile):
-            if self.config.has_option(datafile, key):
-                return self.config.get(datafile,key)
-            else:
-                if key == Options.SEM_DELIM:
-                    return Options.DEFAULT_SEM_DELIM
-                # Usable in case of lack of semantics in the config file
-                return None
-        else:
-            raise ValueError('Unknown section in configuration file: ' + datafile)
+        config = configparser.ConfigParser()
+        config.read(filename)
+        self.sources = []
+        nbactive = 0
+        for elem in config.sections():
+            active = False
+            if self.ACTIVE in config[elem]:
+                if config[elem][self.ACTIVE] == "True":
+                    active = True
+                    nbactive += 1
+            source = Source(elem,
+                            config[elem][self.FILE],
+                            config[elem][self.DOMAIN],
+                            config[elem][self.TYPE],
+                            config[elem][self.PREFIX],
+                            config[elem][self.DELIMITER],
+                            active)
+            if self.SEMANTICS in config[elem]:
+                source.setSemantic(config[elem][self.SEMANTICS])
+            self.sources.append(source)
+        print("Config file read: found " + str(len(self.sources)) + " source(s) and "
+              + str(nbactive) + " active(s)")
     def print(self):
-        for sec in self.config.sections():
-            print('Section: ' + sec)
-            for opt in self.config.options(sec):
-                print('Option: ' + opt)
+        for source in self.sources:
+            source.print()
     
 
 #------------------------------------------ RDFStore
@@ -64,7 +93,7 @@ class RDFStore():
     '''
     def __init__(self, name):
         # Expecting name to be something like "toto"
-        self.name = name + '.ttl'
+        self.name = name
         self.store = Graph()
     def get_store(self):
         return self.store
@@ -87,7 +116,7 @@ def format_predicate(pred):
     return new
 
     
-def default_csv_parser(conf, f, store, verbose=False):
+def default_csv_parser(source, store, verbose=False):
     '''
     In case no semantics are provided, this is the default parsing procedure
     This function reads the CSV file line by line and generates default triples:
@@ -95,18 +124,20 @@ def default_csv_parser(conf, f, store, verbose=False):
     And for each cell in the line:
     -> domain:predicate_prefix+index COLUMN_TITLE Literal(value) .
     '''
-    delim = conf.get_option(f, Options.DELIMITER)
+    delim = source.delim
     try:
         # CSV files may contain non UTF8 chars
-        reader = csv.reader(open(f, "r", encoding='utf-8', errors='ignore'), delimiter=delim)
+        reader = csv.reader(open(source.file, "r", encoding='utf-8', errors='ignore'), delimiter=delim)
 
         # predicates is used to store all headers of the first row but in a RDF manner
         # because they will be the predicate
         predicates = []
-        domain = conf.get_option(f, Options.DOMAIN)
-        prefix = conf.get_option(f, Options.PREFIX)
-        mytype = conf.get_option(f, Options.TYPE)
+        domain = source.domain
+        prefix = source.prefix
+        mytype = source.type
+        start = time.time()
         for i, row in enumerate(reader):
+            print(str(i), end='|')
             if i == 0:
                 for elem in row:
                     predicates.append(URIRef(domain + format_predicate(elem)))
@@ -119,6 +150,8 @@ def default_csv_parser(conf, f, store, verbose=False):
                     if not elem == '':
                         e = Literal(elem)
                         store.add((subject, predicates[n], e))
+        end = time.time()
+        print("Treatment duration: " + str(datetime.timedelta(end-start)))
         if verbose:            
             print("%d lines loaded" % (i-1))
     except csv.Error as e:
@@ -317,44 +350,70 @@ def to_int(a, range):
 def main():
     try:
         # Option 't' is a hidden option
-        opts, args = getopt.getopt(sys.argv[1:], "ohv",
-                                   ["options=", "display=", \
-                                    "semantic=", "help", "verbose"])
+        opts, args = getopt.getopt(sys.argv[1:], "c:o:hv",
+                                   ["conf=", "output=", "help", "verbose"])
     except getopt.GetoptError:
         # print help information and exit:
         usage()
         sys.exit(2)
     options = None
     verbose = False
+    output = ""
     for o, a in opts:
         if o == "-v":
             verbose = True
         if o in ("-h", "--help"):
             usage()
             sys.exit()
-        if o in ("-o", "--options"):
+        if o in ("-c", "--conf"):
             options = a
+            print("Configuration file: " + a)
+        if o in ("-o", "--output"):
+            output = a
+            print("Ouput file: " + a)
             
     # default option file name if no options are provided
     if options == None:
         usage()
         sys.exit()
     opt = Options(options)
+    opt.print()
 
-    store = RDFStore(myfile.split('.')[0])
-
-    conf = Config(myfile, opt, verbose)
-    if semantic != None:
-        soptions = Semantic(semantic, verbose)
-        soptions.print()
-        print(soptions.get_root())
-        # TODO pass soptions to parse_file
-        conf.parse_file()
+    # Change the extension of the name and define a default file name
+    if output == "":
+        output = "rdfstore.ttl"
     else:
-        conf.parse_file()
-    conf.dump_store()
-    if display != -1:
-        rdf_to_graphviz(conf.get_store(),file.split('.')[0], display)
+        output = output.split(".")[0] + ".ttl"
+    print(output)
+    store = RDFStore(output)
+
+    for source in opt.sources:
+        resp = input("Start " + source.name + " processing? ")
+        if resp.upper() in ["NO","N"]:
+            print("Skipping...")
+            break
+        if not source.semantic:
+            default_csv_parser(source, store, verbose=False)
+        store.dump()
+    print("Goodbye")
+    return
+
+
+
+
+
+#    conf = Config(myfile, opt, verbose)
+#    if semantic != None:
+#        soptions = Semantic(semantic, verbose)
+#        soptions.print()
+#        print(soptions.get_root())
+        # TODO pass soptions to parse_file
+#        conf.parse_file()
+#    else:
+#        conf.parse_file()
+#    conf.dump_store()
+#    if display != -1:
+#        rdf_to_graphviz(conf.get_store(),file.split('.')[0], display)
 
 
 if __name__ == '__main__':
