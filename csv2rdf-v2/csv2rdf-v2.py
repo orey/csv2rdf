@@ -35,6 +35,7 @@ class Source():
         print("Type: " + self.type)
         print("Prefix: " + self.prefix)
         print("Delim: " + self.delim)
+        print("Active: " + str(self.active))
         if self.semantic:
             print("Semantics: " + self.semanticfile)
 
@@ -151,7 +152,7 @@ def default_csv_parser(source, store, verbose=False):
                         e = Literal(elem)
                         store.add((subject, predicates[n], e))
         end = time.time()
-        print("Treatment duration: " + str(datetime.timedelta(end-start)))
+        print("\nTreatment duration: " + str((round(end-start))//60) + " minutes and " + str((round(end-start))%60) + " seconds\n")
         if verbose:            
             print("%d lines loaded" % (i-1))
     except csv.Error as e:
@@ -163,13 +164,176 @@ def default_csv_parser(source, store, verbose=False):
         print(type(e))
         print(e.args)
         print(e)
-  
+
+#------------------------------------------ semantic_ini_parser
+def generate_type_triples(str, store, domain):
+    '''
+    We analyze a list of types separated by a comma and create the
+    genealogy. The last one must be a rdf/rdfs type.
+    Works for cell and column.
+    '''
+    lst = str.split(',')
+    if len(lst) < 2:
+        return True
+    # we generate couples so not for the last one
+    for i in range(0, len(lst)-1):
+        lower = lst[i] # should not be a rdf/rdfs
+        new = lst[i+1]
+        lowertype = URIRef(domain + lower)
+        if new.upper() == "RDFS:RESOURCE":
+            newtype = RDFS.Resource
+        elif new.upper() == "RDF.PROPERY":
+            newtype = RDF.Property
+        elif new.upper() == "RDFS:COMMENT":
+            newtype = RDFS.comment
+        else:
+            newtype = URIRef(domain + new)
+        store.add((lowertype, RDF.type, newtype))
+    return True
+
+
+class Column():
+    to_ignore = False
+    is_pkey = False
+    is_pkey_descr = False
+    def __init__(self,mydict):
+        self.mydict = mydict
+        if mydict['cell'] == 'ignore':
+            self.to_ignore = True
+        elif mydict['cell'] == 'pkey':
+            self.is_pkey = True
+        elif mydict['celltypes'] == 'string':
+            self.is_pkey_descr = True
+            
+    def generate_triples(self,store,domain,cell,pkey,lists=None):
+        # gestion des trois cas particuliers
+        if self.to_ignore:
+            return
+        if self.is_pkey:
+            mytype = mydict['celltypes'].split(',')[0]
+            store.add((URIRef(domain + cell), RDF.type, URIRef(domain + mytype)))
+            generate_type_triples(mydict['celltypes'], store, domain)
+            return
+        if self.is_pkey_descr:
+            store.add((URIRef(domain + pkey),RDFS.comment,cell))
+            return
+        #cas général
+        cellgrammar = self.mydict['cell'].split(',') #simple or with command
+        celltypes = self.mydict['celltypes'].split(',') #hierarchy of types, last one being rdf/rdfs
+        colgrammar = self.mydict['column'].split(',') #should have only one element
+        coltypes = self.mydict['columntypes'].split(',') #hierarchy of types, last one being rdf/rdfs
+        #simple case, we have the 6 triples
+        if len(cellgrammar) == 1:
+            if cellgrammar[0] == 'subject' and colgrammar[0] == 'predicate':
+                store.add((URIRef(domain + cell), URIRef(domain + coltypes[0]), URIRef(domain + pkey)))
+            elif cellgrammar[0] == 'object' and colgrammar[0] == 'predicate':
+                store.add((URIRef(domain + pkey), URIRef(domain + coltypes[0]), URIRef(domain + cell)))
+            elif cellgrammar[0] == 'predicate' and colgrammar[0] == 'subject': #strange case
+                store.add((URIRef(domain + coltypes[0]), URIRef(domain + cell), URIRef(domain + pkey)))
+            elif cellgrammar[0] == 'predicate' and colgrammar[0] == 'object': #strange case
+                store.add(URIRef(domain + pkey), URIRef(domain + cell), (URIRef(domain + coltypes[0])))
+            elif cellgrammar[0] == 'subject' and colgrammar[0] == 'object': #strange case
+                store.add(URIRef(domain + cell), URIRef(domain + pkey), (URIRef(domain + coltypes[0])))
+            elif cellgrammar[0] == 'object' and colgrammar[0] == 'subject': #strange case
+                store.add(URIRef(domain + coltypes[0]), URIRef(domain + pkey), (URIRef(domain + cell)))
+            else:
+                print("This should not happen. Exiting...")
+                exit(0)
+        # we have a command to process, 'cell' will be altered
+        # map, extract, prefix
+        else:
+            newcell = ""
+            # map
+            if cellgrammar[1].startswith("map("):
+                args = cellgrammar[1][4:-1].split(',')#expecting 2 arguments 'all,*suppliers*' or '1:2,*configs*'
+                maptable = lists[args[1]] #getting dict
+                if args[0] == 'all':
+                    newcell = maptable[cell]
+                else:
+                    [myinf,mymax] = args[0].split(":")
+                    myinfchar = int(myinf) if (myinf != "") else 0
+                    mymaxchar = int(mymax) if (mymax != "") else 0
+                    newcell = maptable[cell[myinfchar:mymaxchar]]
+            # extract
+            elif cellgrammar[1].startswith("extract("):
+                args = cellgrammar[1][8:-1] #expecting one argument '-3:' or '1:2'
+                [myinf,mymax] = args.split(":")
+                myinfchar = int(myinf) if (myinf != "") else 0
+                mymaxchar = int(mymax) if (mymax != "") else 0
+                newcell = cell[myinfchar:mymaxchar]
+            # prefix
+            elif cellgrammar[1].startswith("prefix("):
+                args = cellgrammar[1][7:-1] #expecting one arg such as 'toto_' or 'gnu_'
+                mewcell = args + cell
+            else:
+                print("Unknown command: " + cellgrammar[1] + " Exiting...")
+                exit(0)
+            if cellgrammar[0] == 'subject' and colgrammar[0] == 'predicate':
+                store.add((URIRef(domain + newcell), URIRef(domain + coltypes[0]), URIRef(domain + pkey)))
+            elif cellgrammar[0] == 'object' and colgrammar[0] == 'predicate':
+                store.add((URIRef(domain + pkey), URIRef(domain + coltypes[0]), URIRef(domain + newcell)))
+            elif cellgrammar[0] == 'predicate' and colgrammar[0] == 'subject': #strange case
+                store.add((URIRef(domain + coltypes[0]), URIRef(domain + newcell), URIRef(domain + pkey)))
+            elif cellgrammar[0] == 'predicate' and colgrammar[0] == 'object': #strange case
+                store.add(URIRef(domain + pkey), URIRef(domain + newcell), (URIRef(domain + coltypes[0])))
+            elif cellgrammar[0] == 'subject' and colgrammar[0] == 'object': #strange case
+                store.add(URIRef(domain + newcell), URIRef(domain + pkey), (URIRef(domain + coltypes[0])))
+            elif cellgrammar[0] == 'object' and colgrammar[0] == 'subject': #strange case
+                store.add(URIRef(domain + coltypes[0]), URIRef(domain + pkey), (URIRef(domain + newcell)))
+            else:
+                print("This should not happen. Exiting...")
+                exit(0)
+        #remains the generation of triples associated to types and relationships
+        generate_type_triples(celltypes, store, domain)
+        generate_type_triples(coltypes, store, domain)
+        return
+
+
+class Grammar():
+    pkey = None
+    def __init__(self,filename):
+        if not os.path.isfile(filename):
+            raise FileNotFoundError('File "' + filename + '" not found.')
+        self.filename = filename
+        config = configparser.ConfigParser()
+        config.read(filename)
+        self.columns = dict() #dictionary of dictionaries: 'name : Column object'
+        self.lists = dict() #dictionary of dictionaries: 'name : dictionary of key/values'
+        #read sections
+        nbsec = 0
+        nblist = 0
+        for elem in config.sections():
+            if elem.startswith('*') and elem.endswith('*'):
+                print("List found: " + elem)
+                mydict = dict()
+                for key in config[elem]:
+                    mydict[key] = config[elem][key]
+                self.lists[elem] = mydict
+                nblist += 1
+            else:
+                mydict = dict()
+                for key in config[elem]:
+                    mydict[key] = config[elem][key]
+                temp = Column(mydict)
+                # we keep a copy to be able to pass it as a parameter
+                if temp.is_pkey:
+                    self.pkey = temp
+                self.columns[elem] = temp
+                print("Column section found: " + elem)
+                nbsec += 1
+        print("Found: " + str(nbsec) + " sections and " + str(nblist) + " lists")
+                
+
+
+
+
+        
 
 #------------------------------------------ semantic_csv_parser
 class SGrammar():
     SEP = '|'
     IGNORE = 'ignore'
-    SUBJECT1 = 'subject1'
+    SUBJECT1 = 'pkey'
     SUBJECT2 = 'subject2'
     LITERAL = 'literal'
     FORGET = ['NONE', '-', '']
@@ -304,31 +468,10 @@ def semantic_csv_parser(conf, f, store, verbose=False):
         print(type(e), e, e.args)
         traceback.print_exc()
         
-#------------------------------------------ orchestrator
-def orchestrator(options, store, verbose=False):
-    '''
-    The orchestrator determines what to do from the option files and calls the right parser
-    depending on the semantic file presence of absence
-    '''
-    try:
-        files = options.get_files()
-        for f in files:
-            if options.get_option(f, Options.SEMANTICS) != None:
-                semantic_csv_parser(options, f, store, verbose)
-            else:
-                default_csv_parser(options, f, store, verbose)
-    except Exception as e:
-        print(type(e))
-        print(e)
-        sys.exit(1)
-
-        
 #------------------------------------------ usage
 def usage():
     print("Utility to transform CSV files into RDF files")
-    print("Usage: \n $ csv2rdf -o [OPTIONS.ini] [-v]")
-    print("Options:")
-    print('==> "-o": [OPTION.ini] is an option file.')
+    print("Usage: \n $ csv2rdf -c [CONFIG] -o [output] [-v]")
     sys.exit(0)
 
 
@@ -347,6 +490,7 @@ def to_int(a, range):
         return 0
 
 
+#------------------------------------------ main
 def main():
     try:
         # Option 't' is a hidden option
@@ -359,6 +503,7 @@ def main():
     options = None
     verbose = False
     output = ""
+    test = False
     for o, a in opts:
         if o == "-v":
             verbose = True
@@ -371,7 +516,9 @@ def main():
         if o in ("-o", "--output"):
             output = a
             print("Ouput file: " + a)
-            
+        if o == "test":
+           test = True
+
     # default option file name if no options are provided
     if options == None:
         usage()
@@ -379,22 +526,39 @@ def main():
     opt = Options(options)
     opt.print()
 
-    # Change the extension of the name and define a default file name
-    if output == "":
-        output = "rdfstore.ttl"
-    else:
-        output = output.split(".")[0] + ".ttl"
-    print(output)
-    store = RDFStore(output)
-
+    # Supporting multiple stores, one by source
+    storeindex = 0
+    
     for source in opt.sources:
-        resp = input("Start " + source.name + " processing? ")
+        storeindex +=1
+        if not source.active:
+            print("The source " + source.name + " is declared as inactive. Skipping...")
+            continue
+        
+        # determine name of the triplestore
+        if output == "":
+            output = "rdfstore" + '-' + str(storeindex) + ".ttl"
+        else:
+            output = output.split(".")[0] + '-' + str(storeindex) + ".ttl"
+        store = RDFStore(output)
+
+        # the generation can be long: we ask if we are sure
+        resp = input("Start " + source.name + " processing with store file being '" + output + "'?")
         if resp.upper() in ["NO","N"]:
-            print("Skipping...")
-            break
+            print("Skipping " + source.name + "...")
+            continue
+
+        # route to the proper parser
         if not source.semantic:
             default_csv_parser(source, store, verbose=False)
+        else:
+            gram = Grammar(source.semanticfile)
+            return
+
+        # Dumping the triplestore
+        print("Store dump begin")
         store.dump()
+        print("Store dump end")
     print("Goodbye")
     return
 
