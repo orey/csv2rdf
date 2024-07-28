@@ -323,7 +323,8 @@ class Grammar():
                 nbsec += 1
         print("Found: " + str(nbsec) + " sections and " + str(nblist) + " lists")
                 
-
+# reprendre ici, il faut câbler le tout en n'oubliant pas qu'il faut traiter
+# le startswith pour les sections ayant de multiples actions
 
 
 
