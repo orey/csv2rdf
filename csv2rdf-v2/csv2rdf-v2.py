@@ -11,7 +11,9 @@ import getopt, sys, csv, configparser, os.path, traceback, time, datetime
 from rdflib import Graph, Literal, URIRef, RDF, RDFS, BNode
 
 MY_RDF_STORE = "rdf_store.rdf"
-VERBOSE = True
+
+VERBOSE = False
+INTERRUPT = False
 
 
 #============================================ interrupt
@@ -32,9 +34,9 @@ class Timer():
     def stop(self):
         self.stop = time.time()
         print("\nTreatment duration: "
-              + str((round(end-start))//60)
+              + str((round(self.stop-self.start))//60)
               + " minutes and "
-              + str((round(end-start))%60)
+              + str((round(self.stop-self.start))%60)
               + " seconds\n")
         
 
@@ -123,7 +125,7 @@ class RDFStore():
     This class wraps the RDF store proposed by rdflib
     TODO Add more output formats in dump_store
     '''
-    def __init__(self, name, interrupt=False):
+    def __init__(self, name):
         # Expecting name to be something like "toto"
         self.name = name
         self.interrupt = interrupt
@@ -131,22 +133,22 @@ class RDFStore():
     def get_store(self):
         return self.store
     def add(self, triple):
-        if VERBOSE:
-            print(triple)
-        if interrupt: interrupt()
+        if VERBOSE: print(triple)
+        if INTERRUPT: interrupt()
         self.store.add(triple)
     def dump(self):
-        if VERBOSE: print("Dumping store")
+        print("Dumping store")
         tim = Timer()
         self.store.serialize(self.name, format='turtle')
         tim.stop()
+        print("Store dumped")
 
 
 #================================================= format_predicate
 def format_predicate(pred):
     new = ''
     for i, c in enumerate(pred):
-        if c in [' ', '-']:
+        if c in [' ', '-', '/', '(',')',',', '"', "'"]:
             new += '_'
         else:
             new += pred[i]
@@ -253,7 +255,9 @@ class Column():
             #should not happen because sections ignorable are intercepted before
             return
         if self.is_pkey_descr:
-            store.add((URIRef(domain + pkey),RDFS.comment,'"' + cell + '"'))
+            store.add((URIRef(domain + pkey),
+                       RDFS.comment,
+                       Literal(cell)))
             return
         if self.is_pkey:
             mytype = self.mydict['celltypes'].split(',')[0]
@@ -414,7 +418,7 @@ class Grammar():
         nblist = 0
         for elem in config.sections():
             if elem.startswith('*') and elem.endswith('*'):
-                print("List found: " + elem)
+                if VERBOSE: print("List found: " + elem)
                 mydict = dict()
                 for key in config[elem]:
                     mydict[key] = config[elem][key]
@@ -430,7 +434,7 @@ class Grammar():
                     self.pkeycolumnname = elem
                     if VERBOSE: print("pkey column name found: " + elem)
                 self.columns[elem] = temp
-                print("Column section found: " + elem)
+                if VERBOSE: print("Column section found: " + elem)
                 nbsec += 1
         print("Found: " + str(nbsec) + " sections and " + str(nblist) + " lists")
         if self.pkeycolumnname == "":
@@ -473,8 +477,8 @@ class Grammar():
             tim = Timer()
             pkeyindex = -1
             for i, row in enumerate(reader):
-                #print(str(i), end='|')
-                print("CSV data file: " + source.file + " - line " + str(i))
+                print(str(i), end='|')
+                #print("CSV data file: " + source.file + " - line " + str(i))
                 # dealing with CSV header
                 if i == 0:
                     for i in range(0,len(row)):
@@ -487,20 +491,21 @@ class Grammar():
                     if VERBOSE:
                         print(predicates)
                 else:
-                    print("Row #" + str(i))
-                    print(row)
+                    if VERBOSE:
+                        print("Row #" + str(i))
+                        print(row)
                     # general case: standard row
                     for j in range(0,len(row)):
-                        # 1. get the cell value
-                        cell = row[j]
+                        # 1. get the cell value and protect versus crappy data
+                        cell = format_predicate(row[j])
                         if cell == "":
                             if VERBOSE:
                                 print("------\nEmpty cell in column: " + predicates[j] + " Skipping")
                             continue
                         # 2. get pkeyvalue because it will be in the triple
-                        pkeyvalue = row[pkeyindex]
+                        pkeyvalue = format_predicate(row[pkeyindex])
                         # 3. get the standard column name
-                        colname = predicates[j]
+                        colname = format_predicate(predicates[j])
                         # 4. get the applicable Columns objects
                         #    there may be several if several treatments are associated to a
                         #    single column ('[VAPMOV$1]' and '[VAPMOV$1]'
@@ -557,27 +562,24 @@ def to_int(a, range):
 def main():
     try:
         # Option 't' is a hidden option
-        opts, args = getopt.getopt(sys.argv[1:], "c:o:h",
-                                   ["conf=", "output=", "help"])
+        opts, args = getopt.getopt(sys.argv[1:], "c:ih",
+                                   ["conf=", "interactive", "help"])
     except getopt.GetoptError:
         # print help information and exit:
         usage()
         sys.exit(2)
     options = None
-    output = ""
-    test = False
+    interactive = False
     for o, a in opts:
         if o in ("-h", "--help"):
             usage()
             sys.exit()
+        if o in ("-i", "--interactive"):
+            interactive = True
+            print("Interactive mode chosen, you will be prompted before processing each source")
         if o in ("-c", "--conf"):
             options = a
             print("Configuration file: " + a)
-        if o in ("-o", "--output"):
-            output = a
-            print("Ouput file: " + a)
-        if o == "test":
-           test = True
 
     # default option file name if no options are provided
     if options == None:
@@ -596,19 +598,15 @@ def main():
             continue
         
         # determine name of the triplestore
-        if output == "":
-            output = "rdfstore" + '-' + str(storeindex) + ".ttl"
-        else:
-            output = output.split(".")[0] + '-' + str(storeindex) + ".ttl"
-        #store = RDFStore(output)
-        #used for fine grain analysis
-        store = RDFStore(output, True)
+        output = source.name + ".ttl"
+        store = RDFStore(output)
 
         # the generation can be long: we ask if we are sure
-        resp = input("Start " + source.name + " processing with store file being '" + output + "'? ")
-        if resp.upper() in ["NO","N"]:
-            print("Skipping " + source.name + "...")
-            continue
+        if interactive:
+            resp = input("------\nStart " + source.name + " processing with TTL store file being '" + output + "'? ")
+            if resp.upper() in ["NO","N"]:
+                print("Skipping " + source.name + "...")
+                continue
 
         # route to the proper parser
         if not source.semantic:
@@ -617,31 +615,11 @@ def main():
             # Parsing the grammar file
             gram = Grammar(source.semanticfile)
             gram.semantic_parser(source, store)
-            return
 
         # Dumping the triplestore
-        print("Store dump begin")
         store.dump()
-        print("Store dump end")
     print("Goodbye")
     return
-
-
-
-
-
-#    conf = Config(myfile, opt, verbose)
-#    if semantic != None:
-#        soptions = Semantic(semantic)
-#        soptions.print()
-#        print(soptions.get_root())
-        # TODO pass soptions to parse_file
-#        conf.parse_file()
-#    else:
-#        conf.parse_file()
-#    conf.dump_store()
-#    if display != -1:
-#        rdf_to_graphviz(conf.get_store(),file.split('.')[0], display)
 
 
 if __name__ == '__main__':

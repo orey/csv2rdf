@@ -1,108 +1,162 @@
-# CSV To RDF Converter
+# CSV To RDF Converter v2
+
+## A better version
 
 This program is a utility to transform CSV files into RDF files. It has 2 modes:
 
   * A standard mode without semantic grammar,
   * A mode with a semantic grammar
 
-
 ## Usage
 
 ```
-$ csv2rdf -c [CONFIG] -o [OUTPUT] [-v]
+$ python csv2rdf-v2 -c [CONFIG.ini] -i
 ```
+
+`CONFIG.ini` is structured as a [Python configuration file](https://docs.python.org/3/library/configparser.html#supported-ini-file-structure).
 
 ## Sample of option file
 
 ```
 [./tests/test1.csv]
 domain = https://www.example.com/rdf/
-type = ConfigurationItem
+type = Part
 predicate_prefix = CI_
 delimiter = ;
 active = False
 
 [./tests/test2.csv]
 domain = https://www.example.com/rdf/
-type = ConfigurationItem
-predicate_prefix = CI_
+# Those 2 fields are not used in the case of the semantic parser
+type = NotUsed
+predicate_prefix = NotUsed
 delimiter = ;
 active = True
-semantics = ./tests/semantics.csv
+semantics = semantics.ini
 ```
 
-## CSV To RDF Comments
+## Step by step analysis of the semantic configuration
 
-### Comments about the semantic parser
+### Introduction
 
-Vocabulary hypothesis: triples are decomposed in subject, predicate, object. Subjects and objects are "roles" that can be endorsed by URIRefs or Literal or blank nodes.
+The semantic configuration file is also a [Python configuration file](https://docs.python.org/3/library/configparser.html#supported-ini-file-structure) and so a `.ini`.
 
-Despite the fact that there may be lists in some fields, we'll try not to use any blank node concept but generate multiple triples instead.
+The section names are the **exact** names of the CSV file header.
 
-## Translation in semantic web
+A triple is considered to be: `subject predicate object .`
 
-### Type
-
-`type` in the configuration file will be the type of each triple, in the context of the `domain` that you have provided.
-
-The CSV file is containing lines of `domain:type`:
-```
-domain:Li a domain:type .
-```
-
-### Hierarchy of types and relashionships
-
-For sure, once in the triple store, you have to link all types and all relationships to existing types, for instance:
-```
-domain:type a rdfs:Resource .
-```
-
-This triple and all the types that you will ue and all the relationships must be linked to `rdfs:Resource` or `rdfs:Property`. Surely, they can have their own hierarchy of types, which will enable sparql to 'reason' on them.
-
-### Modeling the cell information
-
-Depending on the value in the cell, if the value is an object, we can have the following cases.
-
-`Li` is the identifier of the i-th line and `Kj` is the identifier of the j-th column; `Cij` is the cell.
-
-If `Cij` is a value, we have 2 choices:
-
-* `domain:Li domain:Kj domain:Cij .`
-* `domain:Ki domain:Li domain:Cij .`
-
-The second one is weird because `Li` is supposed to be an object, so be at the subject or object place rather than at the predicate place.
-
-If `Cij` is not a value, it is an object, so we have to type it :
+### Step by step
 
 ```
-domain:Cij a domain:Kj .
+[PNR]
+# pkey: will serve for all triples
+cell = pkey
+celltypes = pnr,rdfs:Resource
 ```
 
-We then have multiple possibilities:
+The file must contain a primary key, here the Part Number. By using the `pkey` value, we tell the parser that it will find the primary key in the `PNR` column.
 
-* `domain:Li domain:Kj domain:Cij .`
-* `domain:Li domain:Cij domain:Kj .`
-* `domain:Cij domain:Kj domain:Li .`
-* `domain:Kj domain:Cij domain:Li .`
-* Etc.
+Part numbers have types, so the system will generate something like `domain:cell a domain:pnr .`
 
-### Grammar
+The `domain:pnr` is a type attached to `rdfs:Resource`. So the system will generate  `domain:pnr a rdfs:Resource .`
 
-The semantic parser works with a semantic simplistic grammar. The idea of this grammar is to identify how the 3 following informations should be dealt with:
+Those 2 triples will be generated each time unless the value of the cell is a `Literal`.
 
-* Line identifier
-    * Each line is an instance of a particular concept. One column will contain the ID of the line. It will be the "master subject" that we will name `pkey`. `pkey` will be potentially used for triple generations when treating the rest of the cells.
-* Column name: generally used as a predicate.
-* Cell value: can be a Literal, an object or a subject. Can be related to `pkey` or not.
+```
+[MOI]
+cell = ignore
+```
 
-The grammar proposes the following semantic:
+This indicates that the column is ignored and the cells of this colum will not generate any triple.
 
-* CSV line = `colum-name;command`
-    * colum-name will be formated with `_` by the parser (in case the column name has spaces in it) when generating triples
-* command grammar = `cellrole|celltype|columnrole|columnalias` OR `ignore`, separator is `|`
-    * `cellrole` = `pkey` or `subject` or `predicate` or `object` or `value`
-        * `pkey` for the primary subject (the line identifier, that does not need to be unique). Note that there is only one column that is `pkey` in the file.
-    * `celltype` = the type of the cell
-        * Not applicable if the cell is a `value`
-    * `columrole` = `subject` or `predicate` or `object`
-    * `columnalias` = a string that describe better the predicate than the column name.
+```
+[IPPN]
+cell = subject
+celltypes = ippn,rdfs:Resource
+column = predicate
+columntypes = ippn_contains,rdf:Property
+```
+
+A classic example of the grammar :
+
+* By saying that the cell is `subject` and the colum is `predicate`, while keeping in ming that the `pkey` is the 3rd member of the triple, the system will generate `domain:cell domain:ippn_contains domain:pkey .`
+    * A variation of that is the cell being the `object` and the column being the `predicate`. All possibilities are feasible, between the cell and the column, considering that the `pkey` is always the 3rd member of the triple.
+* cell is of type `ippn`, so we'll generate: `domain:cell a domain:ippn .`
+* `ippn` is a type so: `domain:ippn a rdfs:Resource .`, but we have also `domain:ippn_contains a rdf:Property`.
+
+```
+[CSN]
+cell = object
+celltypes = csn,rdfs:Resource
+column = predicate
+columntypes = csn_located_in,rdf:Property
+```
+
+Above, another sample with the cell as an `object` in the triple.
+
+```
+[SRV]
+cell = object,map(all;*nations*)
+celltypes = nation,rdfs:Resource
+column = predicate
+columntypes = serviced_to,rdf:Property
+
+[*nations*]
+FIF = Finland
+NON = Norway
+SES = Sweden
+```
+
+In the sample above, we will map the cell (that will be considered as an `object`) on the `*nations*` list. When a section name is surrounded by stars, it means that it is a list. We expect to have cells taking the `FIF`, `NON` or `SES` values and to replace them in the triples by respectively `Finland`, `Norway` and `Sweden`.
+
+Note two things about `object,map(all;*nations*)`:
+
+* The action `map` is separated from the role of the cell by a comma;
+* The parameters of the `map` are separated by a semicolon:
+    * The first one `all` means the key of the mapping is all the characters of the cell
+    * This first parameter can be replaced by a subset of parameters following the conventions of Python:
+        * `0:4` means from the character of index 0 (the first of the cell string) to the character of index 3 included (4 excluded),
+        * `1:-1` means from the character of index 1 to the character before the last one,
+        * Etc.
+        
+```
+[Effectivity from (digits 1-4 of EFY)$1]
+cell = object
+celltypes = effectivity,rdfs:Resource
+column = predicate
+columntypes = effectivity_from,effectivity_link,rdf:Property
+
+[Effectivity from (digits 1-4 of EFY)$2]
+cell = object,map(1:2;*configs*)
+celltypes = aircraft_configuration,rdfs:Resource
+column = predicate
+columntypes = mountable_on,effectivity_link,rdf:Property
+```
+The second sample above is showing in the `map` command a subset of the cell characters, `1:2` meaning we want to get only the second character of the string (index 1 included and index 2 excluded).
+
+This couple of actions have identical names except that they finish by `$1` and `$2`. This convention is used when the same cell must be treated in several different ways to generate different sets of triples. Note that before the `$`, we still have the exact name of the CSV column.
+
+We can also note that we have a chain of column types that is more complicated than the usual ones. The semantic parser will generate the chain: `domain:mountable_on a domain:effectivity_link .` and `domain:effectivity_link a rdf:Property . `
+
+```
+[Effectivity to (digits 5-8 of EFY)$2]
+cell = object,extract(-3:)
+celltypes = bbl_validity_code,rdfs:Resource
+column = predicate
+columntypes = effectivity_to_bbl,effectivity_link,rdf:Property
+```
+
+Sometimes, we just want to extract from chain just the relevant letters for the triples. The `extract` function is doing that, having one parameter that is similar to the one of `map`.
+
+```
+[NSC]
+cell = object,prefix(nsc_)
+celltypes = higher_level_nato_part_id,nato_part_id,rdfs:Resource
+column = predicate
+columntypes = nato_supply_class,nato_codification,rdf:Property
+```
+
+Last function, the `prefix` adds a prefix to the cell string in order to generate the URI name.
+
+
+
