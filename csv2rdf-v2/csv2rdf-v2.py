@@ -7,6 +7,7 @@
 #!/usr/bin/env python3
 
 import getopt, sys, csv, configparser, os.path, traceback, time, datetime
+import progressbar # pip install progressbar2
 
 from rdflib import Graph, Literal, URIRef, RDF, RDFS, BNode
 
@@ -476,8 +477,17 @@ class Grammar():
             #mytype = source.type
             tim = Timer()
             pkeyindex = -1
+            #counting the lines with a specific reader
+            newreader = csv.reader(open(source.file, "r", encoding='utf-8', errors='ignore'), delimiter=delim)
+            nblines = 0
+            for i, row in enumerate(newreader):
+                nblines += 1
+            print("------\nSource: " + source .name + "\nNumber of lines to process: " + str(nblines))
+            bar = progressbar.ProgressBar(max_value=nblines)
+            # main loop
             for i, row in enumerate(reader):
-                print(str(i), end='|')
+                bar.update(i)
+                #print(str(i), end='|')
                 #print("CSV data file: " + source.file + " - line " + str(i))
                 # dealing with CSV header
                 if i == 0:
