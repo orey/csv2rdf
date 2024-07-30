@@ -18,6 +18,8 @@ When data exist, they exist forever, independently from their version or applica
 
 Data can be stamped with their creation date like `domain:data :created :April2022`.
 
+
+
 ## See also
 
 The README file of the version 2 of this code in the `csv2rdf2` folder.
