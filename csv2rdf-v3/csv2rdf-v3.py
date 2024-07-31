@@ -1,7 +1,7 @@
 #============================================
 # File name:      csv2rdf.py
 # Author:         Olivier Rey
-# Date:           November 2018
+# Date:           July 2024
 # License:        GPL v3
 #============================================
 #!/usr/bin/env python3
