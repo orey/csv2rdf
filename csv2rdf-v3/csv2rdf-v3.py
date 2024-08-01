@@ -1,7 +1,7 @@
 #============================================
 # File name:      csv2rdf.py
 # Author:         Olivier Rey
-# Date:           July 2024
+# Date:           August 2024
 # License:        GPL v3
 #============================================
 #!/usr/bin/env python3
@@ -206,30 +206,32 @@ def default_csv_parser(source, store):
         print(e)
 
 
+def format_date(mydate):
+    '''
+    mydate is supposed to be a standard Python date object from 'datetime'
+    '''
+    return Literal(str(mydate), datatype=XSD.date)
+
 #================================================= generate_type_triples
-def generate_type_triples(lst, store, domain):
-    '''
-    We analyze a list of types separated by a comma and create the
-    genealogy. The last one must be a rdf/rdfs type.
-    Works for cell and column.
-    '''
-    if len(lst) < 2:
-        return True
-    # we generate couples so not for the last one
-    for i in range(0, len(lst)-1):
-        lower = lst[i] # should not be a rdf/rdfs
-        new = lst[i+1]
-        lowertype = URIRef(domain + lower)
-        if new.upper() == "RDFS:RESOURCE":
-            newtype = RDFS.Resource
-        elif new.upper() == "RDF:PROPERTY":
-            newtype = RDF.Property
-        elif new.upper() == "RDFS:COMMENT":
-            newtype = RDFS.comment
+def generate_type_triples(lst, store, domain, isClass):
+    # First, all types are instances of a super class
+    for i in lst:
+        if isClass:
+            store.add((domain + lst[i], RDF.type, rdfs.Class))
         else:
-            newtype = URIRef(domain + new)
-        store.add((lowertype, RDF.type, newtype))
-    return True
+            store.add((domain + lst[i], RDF.type, rdf.Property))
+    # generate the chain of types
+    if len(lst) < 1:
+        return
+    for i in range(0, len(lst)-1):
+        lower = lst[i]
+        new = lst[i+1]
+        previoustype = URIRef(domain + lst[i])
+        nexttype     = URIRef(domain + lst[i+1])
+        if isClass:
+            store.add((previoustype, RDFS.subClassOf, nexttype))
+        else:
+            store.add((previoustype, RDFS.subPropertyOf, nexttype))
 
 
 #================================================= Column
@@ -250,10 +252,10 @@ class Column():
             self.is_pkey_descr = True
             
     #------------------------------------------generate_triples
-    def generate_triples(self,store,domain,cell,pkey,lists):
+    def generate_triples(self,store,domain,cell,pkey,pkeytype,lists):
         # 3 particular cases
         if self.to_ignore:
-            #should not happen because sections ignorable are intercepted before
+            #should not happen because ignorable sectons are intercepted before
             return
         if self.is_pkey_descr:
             store.add((URIRef(domain + pkey),
@@ -275,48 +277,15 @@ class Column():
         colgrammar = self.mydict['column'].split(',')    # should have only one element
         coltypes = self.mydict['columntypes'].split(',') # hierarchy of types, last one being rdf/rdfs
 
-        # simple case, we have the 6 triples
-        if len(cellgrammar) == 1:
-            # 1. we have to type the cell
-            store.add((URIRef(domain + cell),
-                       RDF.type,
-                       URIRef(domain + celltypes[0])))
-            # 2. we generate the standard triple
-            if cellgrammar[0] == 'subject' and colgrammar[0] == 'predicate':
-                store.add((URIRef(domain + format_predicate(cell)),
-                           URIRef(domain + format_predicate(coltypes[0])),
-                           URIRef(domain + format_predicate(pkey))))
-            elif cellgrammar[0] == 'object' and colgrammar[0] == 'predicate':
-                store.add((URIRef(domain + format_predicate(pkey)),
-                           URIRef(domain + format_predicate(coltypes[0])),
-                           URIRef(domain + format_predicate(cell))))
-            elif cellgrammar[0] == 'predicate' and colgrammar[0] == 'subject': #strange case
-                store.add((URIRef(domain + format_predicate(coltypes[0])),
-                           URIRef(domain + format_predicate(cell)),
-                           URIRef(domain + format_predicate(pkey))))
-            elif cellgrammar[0] == 'predicate' and colgrammar[0] == 'object': #strange case
-                store.add(URIRef(domain + format_predicate(pkey)),
-                          URIRef(domain + format_predicate(cell)),
-                          URIRef(domain + format_predicate(coltypes[0])))
-            elif cellgrammar[0] == 'subject' and colgrammar[0] == 'object': #strange case
-                store.add(URIRef(domain + format_predicate(cell)),
-                          URIRef(domain + format_predicate(pkey)),
-                          URIRef(domain + format_predicate(coltypes[0])))
-            elif cellgrammar[0] == 'object' and colgrammar[0] == 'subject': #strange case
-                store.add(URIRef(domain + format_predicate(coltypes[0])),
-                          URIRef(domain + format_predicate(pkey)),
-                          (URIRef(domain + format_predicate(cell))))
-            else:
-                print("This should not happen. Exiting...")
-                exit(0)
-        # we have a command to process, 'cell' will be altered
-        # map, extract, prefix
-        # the newcell will be used for triple generation and the 'cell' will be altered
-        else:
+        # init before treatments
+        newcell = ""
+        # we must alter the cell value in some sort
+        if len(cellgrammar) != 1:
             newcell = ""
             # map
             if cellgrammar[1].startswith("map("):
-                args = (cellgrammar[1][4:-1]).split(';')# expecting 2 arguments 'all;*suppliers*' or '1:2;*configs*'
+                args = (cellgrammar[1][4:-1]).split(';')
+                # expecting 2 arguments 'all;*suppliers*' or '1:2;*configs*'
                 if VERBOSE:
                     print("cellgrammar = ")
                     print(cellgrammar[1])
@@ -355,42 +324,69 @@ class Column():
             else:
                 print("Unknown command: " + cellgrammar[1] + " Exiting...")
                 exit(0)
-            # 1. we have to type the cell
-            store.add((URIRef(domain + format_predicate(newcell)),
-                       RDF.type,
-                       URIRef(domain + format_predicate(celltypes[0]))))
-            # 2. we generate the standard triple
-            if cellgrammar[0] == 'subject' and colgrammar[0] == 'predicate':
-                store.add((URIRef(domain + format_predicate(newcell)),
-                           URIRef(domain + format_predicate(coltypes[0])),
-                           URIRef(domain + format_predicate(pkey))))
-            elif cellgrammar[0] == 'object' and colgrammar[0] == 'predicate':
-                store.add((URIRef(domain + format_predicate(pkey)),
-                           URIRef(domain + format_predicate(coltypes[0])),
-                           URIRef(domain + format_predicate(newcell))))
-            elif cellgrammar[0] == 'predicate' and colgrammar[0] == 'subject': #strange case
-                store.add((URIRef(domain + format_predicate(coltypes[0])),
-                           URIRef(domain + format_predicate(newcell)),
-                           URIRef(domain + format_predicate(pkey))))
-            elif cellgrammar[0] == 'predicate' and colgrammar[0] == 'object': #strange case
-                store.add(URIRef(domain + format_predicate(pkey)),
-                          URIRef(domain + format_predicate(newcell)),
-                          URIRef(domain + format_predicate(coltypes[0])))
-            elif cellgrammar[0] == 'subject' and colgrammar[0] == 'object': #strange case
-                store.add(URIRef(domain + format_predicate(newcell)),
+        else:
+            # we keep the original value
+            newcell = cell
+        
+        # 0. Define readable variables     
+        rdfcell     = URIRef(domain + format_predicate(newcell))
+        rdfcelltype = URIRef(domain + format_predicate(celltypes[0]))
+        rdfcoltype  = URIRef(domain + format_predicate(coltypes[0]))
+        rdfpkey     = URIRef(domain + format_predicate(pkey))
+        rdfpkeytype = URIRef(domain + format_predicate(pkeytype))
+                         
+        # 1. we have to type the cell
+        store.add((rdfcell, RDF.type, rdfcelltype))
+        
+        # 2. we generate the standard triple + the domain and range of the relationship
+
+        # The 2 first cases are standard and should be used 99% of the case
+        if cellgrammar[0] == 'subject' and colgrammar[0] == 'predicate':
+            # standard triple: cell is at the intersection of line and column
+            store.add(   (rdfcell,    rdfcoltype,  rdfpkey))
+            store.add(   (rdfcoltype, RDFS.domain, rdfcelltype))
+            store.domain((rdfcoltype, RDFS.range,  rdfpkeytype))
+            generate_type_triples(celltypes, store, domain, True)
+            generate_type_triples(coltypes,  store, domain, False)
+            
+        elif cellgrammar[0] == 'object' and colgrammar[0] == 'predicate':
+            store.add(   (rdfpkey,    rdfcoltype,  rdfcell))
+            store.domain((rdfcoltype, RDFS.domain, rdfpkeytype))
+            store.add(   (rdfcoltype, RDFS.range,  rdfcelltype))
+            generate_type_triples(celltypes, store, domain, True)
+            generate_type_triples(coltypes,  store, domain, False)
+
+
+
+
+
+        elif cellgrammar[0] == 'predicate' and colgrammar[0] == 'object': #strange case
+            store.add(URIRef(domain + format_predicate(pkey)),
+                      URIRef(domain + format_predicate(newcell)),
+                      URIRef(domain + format_predicate(coltypes[0])))
+        elif cellgrammar[0] == 'subject' and colgrammar[0] == 'object': #strange case
+            store.add(URIRef(domain + format_predicate(newcell)),
                           URIRef(domain + format_predicate(pkey)),
-                          URIRef(domain + format_predicate(coltypes[0])))
-            elif cellgrammar[0] == 'object' and colgrammar[0] == 'subject': #strange case
-                store.add(URIRef(domain + format_predicate(coltypes[0])),
-                          URIRef(domain + format_predicate(pkey)),
-                          URIRef(domain + format_predicate(newcell)))
-            else:
-                print("This should not happen. Exiting...")
-                exit(0)
+                      URIRef(domain + format_predicate(coltypes[0])))
+        elif cellgrammar[0] == 'object' and colgrammar[0] == 'subject': #strange case
+            store.add(URIRef(domain + format_predicate(coltypes[0])),
+                      URIRef(domain + format_predicate(pkey)),
+                      URIRef(domain + format_predicate(newcell)))
+        else:
+            if cellgrammar[0] == 'predicate' and colgrammar[0] == 'subject':
+                print(
+                    '''Very strange case: column is subject and cell is predicate:
+                    That means that the column type will be associated to each line.
+                    We feel this case does not make sense. So skipping...'''
+
+
+            
+                    print("This should not happen. Exiting...")
+                    exit(0)
         # 3. remains the generation of triples associated to types and relationships
-        generate_type_triples(celltypes, store, domain)
-        generate_type_triples(coltypes, store, domain)
-        return
+    generate_type_triples(celltypes, store, domain)
+    generate_type_triples(coltypes, store, domain)
+    return
 
 
 #================================================= Grammar
