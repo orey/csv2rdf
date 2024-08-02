@@ -7,7 +7,7 @@
 #!/usr/bin/env python3
 
 import getopt, sys, csv, configparser, os.path, traceback, time, datetime
-import progressbar # pip install progressbar2
+import progressbar2 # pip install progressbar2
 
 from rdflib import Graph, Literal, URIRef, RDF, RDFS, BNode
 
@@ -126,23 +126,44 @@ class RDFStore():
     This class wraps the RDF store proposed by rdflib
     TODO Add more output formats in dump_store
     '''
-    def __init__(self, name):
+    def __init__(self, name, chunks=False):
         # Expecting name to be something like "toto"
+        self.chunks = chunks
+        # We have at leats one file
+        self.fileindex = 0
         self.name = name
+        # These variables are not useful in case we have no CPU problems
+        self.counter = 0
+        self.MAX = 20000
+        # To check before writing
         self.interrupt = interrupt
-        self.store = Graph()
+        # We can have many stores
+        self.stores = [Graph()]
+    def get_nextname(self):
+        self.fileindex += 1
+        return self.name.split('.')[0] + '-' + str(self.fileindex)  + '.ttl'
     def get_store(self):
         return self.store
+
     def add(self, triple):
         if VERBOSE: print(triple)
         if INTERRUPT: interrupt()
-        self.store.add(triple)
+        self.stores[self.fileindex].add(triple)
+        if self.chunks:
+            self.counter += 1
+            if self.counter >= self.MAX:
+                self.fileindex +=1
+                self.stores.append(Graph())
+                self.counter = 0
+            
     def dump(self):
-        print("Dumping store")
+        print("Dumping stores")
         tim = Timer()
-        self.store.serialize(self.name, format='turtle')
+        for i in range(0, len(self.stores)):
+            self.stores[i].serialize(self.name.split('.')[0] + '-' + str(i)  + '.ttl',
+                            format='turtle')
         tim.stop()
-        print("Store dumped")
+        print("Stores dumped")
 
 
 #================================================= format_predicate
@@ -215,11 +236,11 @@ def format_date(mydate):
 #================================================= generate_type_triples
 def generate_type_triples(lst, store, domain, isClass):
     # First, all types are instances of a super class
-    for i in lst:
+    for i in range(0, len(lst)):
         if isClass:
-            store.add((domain + lst[i], RDF.type, rdfs.Class))
+            store.add((URIRef(domain + lst[i]), RDF.type, RDFS.Class))
         else:
-            store.add((domain + lst[i], RDF.type, rdf.Property))
+            store.add((URIRef(domain + lst[i]), RDF.type, RDF.Property))
     # generate the chain of types
     if len(lst) < 1:
         return
@@ -248,6 +269,7 @@ class Column():
             self.to_ignore = True
         elif mydict['cell'] == 'pkey':
             self.is_pkey = True
+            self.pkeytype = mydict['celltypes'].split(',')[0]
         elif mydict['celltypes'] == 'string':
             self.is_pkey_descr = True
             
@@ -267,7 +289,7 @@ class Column():
             store.add((URIRef(domain + format_predicate(cell)),
                        RDF.type,
                        URIRef(domain + format_predicate(mytype))))
-            generate_type_triples(self.mydict['celltypes'].split(','), store, domain)
+            generate_type_triples(self.mydict['celltypes'].split(','), store, domain, True)
             # there are neither 'columns' nor column types
             return
 
@@ -343,50 +365,23 @@ class Column():
         # The 2 first cases are standard and should be used 99% of the case
         if cellgrammar[0] == 'subject' and colgrammar[0] == 'predicate':
             # standard triple: cell is at the intersection of line and column
-            store.add(   (rdfcell,    rdfcoltype,  rdfpkey))
-            store.add(   (rdfcoltype, RDFS.domain, rdfcelltype))
-            store.domain((rdfcoltype, RDFS.range,  rdfpkeytype))
+            store.add((rdfcell,    rdfcoltype,  rdfpkey))
+            store.add((rdfcoltype, RDFS.domain, rdfcelltype))
+            store.add((rdfcoltype, RDFS.range,  rdfpkeytype))
             generate_type_triples(celltypes, store, domain, True)
             generate_type_triples(coltypes,  store, domain, False)
             
         elif cellgrammar[0] == 'object' and colgrammar[0] == 'predicate':
-            store.add(   (rdfpkey,    rdfcoltype,  rdfcell))
-            store.domain((rdfcoltype, RDFS.domain, rdfpkeytype))
-            store.add(   (rdfcoltype, RDFS.range,  rdfcelltype))
+            store.add((rdfpkey,    rdfcoltype,  rdfcell))
+            store.add((rdfcoltype, RDFS.domain, rdfpkeytype))
+            store.add((rdfcoltype, RDFS.range,  rdfcelltype))
             generate_type_triples(celltypes, store, domain, True)
             generate_type_triples(coltypes,  store, domain, False)
-
-
-
-
-
-        elif cellgrammar[0] == 'predicate' and colgrammar[0] == 'object': #strange case
-            store.add(URIRef(domain + format_predicate(pkey)),
-                      URIRef(domain + format_predicate(newcell)),
-                      URIRef(domain + format_predicate(coltypes[0])))
-        elif cellgrammar[0] == 'subject' and colgrammar[0] == 'object': #strange case
-            store.add(URIRef(domain + format_predicate(newcell)),
-                          URIRef(domain + format_predicate(pkey)),
-                      URIRef(domain + format_predicate(coltypes[0])))
-        elif cellgrammar[0] == 'object' and colgrammar[0] == 'subject': #strange case
-            store.add(URIRef(domain + format_predicate(coltypes[0])),
-                      URIRef(domain + format_predicate(pkey)),
-                      URIRef(domain + format_predicate(newcell)))
         else:
             if cellgrammar[0] == 'predicate' and colgrammar[0] == 'subject':
-                print(
-                    '''Very strange case: column is subject and cell is predicate:
-                    That means that the column type will be associated to each line.
-                    We feel this case does not make sense. So skipping...'''
-
-
-            
-                    print("This should not happen. Exiting...")
-                    exit(0)
-        # 3. remains the generation of triples associated to types and relationships
-    generate_type_triples(celltypes, store, domain)
-    generate_type_triples(coltypes, store, domain)
-    return
+                print("This case is strange because column name is suppose to be the predicate")
+                exit(0)
+        if VERBOSE: print("Done for cell: " + cell)
 
 
 #================================================= Grammar
@@ -396,6 +391,7 @@ class Grammar():
     Semantic parser generates triples accordingly
     '''
     pkeycolumnname = "" # we need to record the name of the column storing the pkey
+    pkeytype = ""
     filename = ""
     columns = None #dictionary of dictionaries: 'name : Column object'
     lists = None #dictionary of dictionaries: 'name : dictionary of key/values'
@@ -430,6 +426,10 @@ class Grammar():
                 if temp.is_pkey:
                     self.pkeycolumnname = elem
                     if VERBOSE: print("pkey column name found: " + elem)
+                    # get pkeytype
+                    self.pkeytype = temp.pkeytype
+                    if VERBOSE: print("pkeytype : " + self.pkeytype)
+                    if INTERRUPT: interrupt()
                 self.columns[elem] = temp
                 if VERBOSE: print("Column section found: " + elem)
                 nbsec += 1
@@ -479,7 +479,7 @@ class Grammar():
             for i, row in enumerate(newreader):
                 nblines += 1
             print("------\nSource: " + source .name + "\nNumber of lines to process: " + str(nblines))
-            bar = progressbar.ProgressBar(max_value=nblines)
+            bar = progressbar2.ProgressBar(max_value=nblines)
             # main loop
             for i, row in enumerate(reader):
                 bar.update(i)
@@ -527,7 +527,7 @@ class Grammar():
                                         print("------\nDomain: " + domain)
                                         print("Cell value: " + cell)
                                         print("pkeyvalue: " + pkeyvalue)
-                                    s.generate_triples(store,domain,cell,pkeyvalue,self.lists)
+                                    s.generate_triples(store,domain,cell,pkeyvalue,self.pkeytype,self.lists)
             tim.stop()
         except csv.Error as e:
             print("Error caught in loading csv file: " + f)
