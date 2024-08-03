@@ -121,7 +121,7 @@ class Options():
     
 
 #================================================= RDFStore
-class RDFStore():
+class RDFStoreChunks():
     '''
     This class wraps the RDF store proposed by rdflib
     TODO Add more output formats in dump_store
@@ -164,6 +164,32 @@ class RDFStore():
                             format='turtle')
         tim.stop()
         print("Stores dumped")
+
+
+#================================================= RDFStore
+class RDFStore():
+    '''
+    This class wraps the RDF store proposed by rdflib
+    TODO Add more output formats in dump_store
+    '''
+    def __init__(self, name):
+        # Expecting name to be something like "toto"
+        self.name = name
+        self.interrupt = interrupt
+        self.store = Graph()
+    def get_store(self):
+        return self.store
+    def add(self, triple):
+        if VERBOSE: print(triple)
+        if INTERRUPT: interrupt()
+        self.store.add(triple)
+    def dump(self):
+        print("Dumping store")
+        tim = Timer()
+        self.store.serialize(self.name, format='turtle')
+        tim.stop()
+        print("Store dumped")
+
 
 
 #================================================= format_predicate
@@ -568,7 +594,7 @@ def to_int(a, range):
 def main():
     try:
         # Option 't' is a hidden option
-        opts, args = getopt.getopt(sys.argv[1:], "c:ih",
+        opts, args = getopt.getopt(sys.argv[1:], "c:o:ih",
                                    ["conf=", "interactive", "help"])
     except getopt.GetoptError:
         # print help information and exit:
