@@ -1,0 +1,35 @@
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+prefix ns1: <https://www.olivier.com/rdf/mipl/>
+prefix ns1v1: <https://www.olivier.com/rdf/mipl/v01/>
+prefix ns1v2: <https://www.olivier.com/rdf/mipl/v02/>
+
+select ?x ?y ?z where {?x ?y ?z}
+
+#### Inference principle
+CONSTRUCT {?x ?r ?y .}
+WHERE {?x ?q ?y .
+?q rdfs:subPropertyOf ?r }
+
+
+#### Créer les enregistrements sur un endpoint /update
+INSERT { ?x ?r ?y . }
+  where {
+  { ?x ?q ?y .
+  ?q rdfs:subPropertyOf ?r . }
+}
+
+#### gestion des versions avec utilisation de la dernière version et de la relation mère uniquement
+SELECT distinct ?x ?z
+WHERE
+{
+	?x ns1v2:applicable_to ?z .
+	MINUS {
+		?x ?r1 ?z .
+		?r1 rdfs:subPropertyOf ns1:applicable_to .
+		filter(?r1 != ns1v2:applicable_to)
+	}
+}
+
+
+
