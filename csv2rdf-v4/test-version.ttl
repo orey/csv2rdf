@@ -1,0 +1,30 @@
+@prefix ns1: <https://www.olivier.com/rdf/mipl/> .
+@prefix ns1v1: <https://www.olivier.com/rdf/mipl/v01/> .
+@prefix ns1v2: <https://www.olivier.com/rdf/mipl/v02/> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+### Define the classes
+ns1:PNR a rdfs:Class .
+ns1:Variant a rdfs:Class .
+
+### Define the instances
+ns1:part12 a ns1:PNR .
+ns1:variantA a ns1:Variant .
+ns1:variantB a ns1:Variant .
+
+### Define the global properties
+ns1:applicable_to a rdf:Property .
+
+### Define the variant 01 data
+ns1v1:applicable_to a rdf:Property ;
+                    rdfs:subPropertyOf ns1:applicable_to .
+
+ns1:part12 ns1v1:applicable_to ns1:variantA .
+
+### Define the variant 02 version
+ns1v2:applicable_to a rdf:Property ;
+                    rdfs:subPropertyOf ns1:applicable_to .
+
+ns1:part12 ns1v2:applicable_to ns1:variantA, ns1:variantB .
+

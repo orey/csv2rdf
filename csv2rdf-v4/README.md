@@ -74,7 +74,7 @@ cell = ignore
 ```
 
 This indicates that the column is ignored and the cells of this colum will not generate any triple.
-
+    
 #### Basic cell (subject/object)
 
 ```
