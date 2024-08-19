@@ -7,7 +7,12 @@
 #!/usr/bin/env python3
 
 import getopt, sys, csv, configparser, os.path, traceback, time
-import progressbar2 # pip install progressbar2
+
+#Conditional import
+try:
+    import progressbar2 #Debian
+except ImportError:
+    import progressbar as progressbar2 #Windows
 
 from rdflib import Graph, Literal, URIRef, RDF, RDFS, BNode, XSD
 from datetime import date
@@ -304,15 +309,18 @@ class Column():
             
     #------------------------------------------generate_triples
     def generate_triples(self,store,domain,cell,pkey,pkeytype,lists):
-        # 3 particular cases
+        #=== 3 particular cases===
+        # A. Ignore the cell
         if self.to_ignore:
             #should not happen because ignorable sectons are intercepted before
             return
+        # B. The cell is the description of the  pkey, so we generate a rdfs:comment
         if self.is_pkey_descr:
             store.add((URIRef(domain + pkey),
                        RDFS.comment,
                        Literal(cell)))
             return
+        # C. This is the kpey cell, so it is simpler than the other cells
         if self.is_pkey:
             mytype = self.mydict['celltypes'].split(',')[0]
             store.add((URIRef(domain + format_predicate(cell)),
@@ -323,17 +331,17 @@ class Column():
             # there are neither 'columns' nor column types
             return
 
-        # general case
+        #=== General case ===
         cellgrammar = self.mydict['cell'].split(',')     # simple or with command
         celltypes = self.mydict['celltypes'].split(',')  # hierarchy of types, last one being rdf/rdfs
         coltypes = self.mydict['columntypes'].split(',') # hierarchy of types, last one being rdf/rdfs
 
         # init before treatments
         newcell = ""
-        # we must alter the cell value in some sort
+        # There are 3 ways to alter the cell value (there could be much more!)
         if len(cellgrammar) != 1:
             newcell = ""
-            # map
+            # ALTER 1: mapping the value of the cell or the value of a part of the cell with a key/value list
             if cellgrammar[1].startswith("map("):
                 args = (cellgrammar[1][4:-1]).split(';')
                 # expecting 2 arguments 'all;*suppliers*' or '1:2;*configs*'
@@ -361,14 +369,14 @@ class Column():
                         print("Strange: " + temp + " is not in maptable")
                         print(maptable)
                         interrupt()
-            # extract
+            # ALTER 2: extracting info from the cell value itself
             elif cellgrammar[1].startswith("extract("):
                 args = cellgrammar[1][8:-1] #expecting one argument '-3:' or '1:2'
                 [myinf,mymax] = args.split(":")
                 myinfchar = int(myinf) if (myinf != "") else 0
                 mymaxchar = int(mymax) if (mymax != "") else 0
                 newcell = cell[myinfchar:mymaxchar]
-            # prefix
+            # ALTER 3: adding a prefix to the cell value
             elif cellgrammar[1].startswith("prefix("):
                 args = cellgrammar[1][7:-1] #expecting one arg such as 'toto_' or 'gnu_'
                 newcell = args + cell
@@ -376,9 +384,10 @@ class Column():
                 print("Unknown command: " + cellgrammar[1] + " Exiting...")
                 exit(0)
         else:
-            # we keep the original value
+            # ALTER 0: we keep the original value
             newcell = cell
         
+        # Main generation algorithm
         # 0. Define readable variables     
         rdfcell     = URIRef(domain + format_predicate(newcell))
         rdfcelltype = URIRef(domain + format_predicate(celltypes[0]))
@@ -391,7 +400,7 @@ class Column():
         
         # 2. we generate the standard triple + the domain and range of the relationship
 
-        # The 2 first cases are standard and should be used 99% of the case
+        # The 2 first cases are standard and should be used 100% of the case
         if cellgrammar[0] == 'subject':
             # standard triple: cell is at the intersection of line and column
             store.add((rdfcell,    rdfcoltype,  rdfpkey))
@@ -399,7 +408,6 @@ class Column():
             store.add((rdfcoltype, RDFS.range,  rdfpkeytype))
             generate_type_triples(celltypes, store, domain, True)
             generate_type_triples(coltypes,  store, domain, False)
-            
         elif cellgrammar[0] == 'object':
             store.add((rdfpkey,    rdfcoltype,  rdfcell))
             store.add((rdfcoltype, RDFS.domain, rdfpkeytype))
@@ -407,6 +415,7 @@ class Column():
             generate_type_triples(celltypes, store, domain, True)
             generate_type_triples(coltypes,  store, domain, False)
         else:
+            # Maybe we'll need this case to be implemented one day but I have doubts about it
             if cellgrammar[0] == 'predicate':
                 print("Not supported. Cell cannot be a predicate but only a subject or an object")
                 exit(0)
