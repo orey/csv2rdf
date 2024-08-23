@@ -204,7 +204,7 @@ class RDFStore():
 def format_predicate(pred):
     new = ''
     for i, c in enumerate(pred):
-        if c in [' ', '-', '/', '(',')',',', '"', "'"]:
+        if c in [' ', '-', '/', '\\', '(',')',',', '"', "'", "<", ">", "|", "{", "}", "^"]:
             new += '_'
         else:
             new += pred[i]
@@ -355,9 +355,10 @@ class Column():
                     if cell.lower() in maptable:
                         newcell = maptable[cell.lower()]
                     else:
-                        print("Strange: " + cell + " is not in maptable")
-                        print(maptable)
-                        interrupt()
+                        #print("Strange: " + cell + " is not in maptable")
+                        #print(maptable)
+                        #interrupt()
+                        newcell = cell
                 else:
                     [myinf,mymax] = args[0].split(":")
                     myinfchar = int(myinf) if (myinf != "") else 0
@@ -366,9 +367,10 @@ class Column():
                     if temp in maptable:
                         newcell = maptable[temp]
                     else:
-                        print("Strange: " + temp + " is not in maptable")
-                        print(maptable)
-                        interrupt()
+                        #print("Strange: " + temp + " is not in maptable")
+                        #print(maptable)
+                        #interrupt()
+                        newcell = temp
             # ALTER 2: extracting info from the cell value itself
             elif cellgrammar[1].startswith("extract("):
                 args = cellgrammar[1][8:-1] #expecting one argument '-3:' or '1:2'
@@ -639,6 +641,7 @@ def main():
     opt = Options(options)
     opt.print()
 
+    start_time = time.time()
     # Supporting multiple stores, one by source
     storeindex = 0
     
@@ -662,6 +665,8 @@ def main():
 
         # Dumping the triplestore
         store.dump()
+    delta = time.time() - start_time
+    print("Program executed in: " + str(datetime.timedelta(delta)))
     print("Goodbye")
     return
 
