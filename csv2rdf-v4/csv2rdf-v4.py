@@ -15,7 +15,7 @@ except ImportError:
     import progressbar as progressbar2 #Windows
 
 from rdflib import Graph, Literal, URIRef, RDF, RDFS, BNode, XSD
-from datetime import date
+from datetime import date, datetime, timedelta
 
 DATE_PREDICATE = "date_created"
 TODAY = str(date.today())
@@ -326,7 +326,7 @@ class Column():
             store.add((URIRef(domain + format_predicate(cell)),
                        RDF.type,
                        URIRef(domain + format_predicate(mytype))))
-            date_stamp(store, domain, URIRef(domain + format_predicate(cell)))           
+            #date_stamp(store, domain, URIRef(domain + format_predicate(cell)))
             generate_type_triples(self.mydict['celltypes'].split(','), store, domain, True)
             # there are neither 'columns' nor column types
             return
@@ -358,7 +358,10 @@ class Column():
                         #print("Strange: " + cell + " is not in maptable")
                         #print(maptable)
                         #interrupt()
-                        newcell = cell
+                        if cell.strip() != "":
+                            newcell = cell
+                        else:
+                            newcell = "STRANGE"
                 else:
                     [myinf,mymax] = args[0].split(":")
                     myinfchar = int(myinf) if (myinf != "") else 0
@@ -370,7 +373,10 @@ class Column():
                         #print("Strange: " + temp + " is not in maptable")
                         #print(maptable)
                         #interrupt()
-                        newcell = temp
+                        if temp.strip() != "":
+                            newcell = temp
+                        else:
+                            newcell = "STRANGE"
             # ALTER 2: extracting info from the cell value itself
             elif cellgrammar[1].startswith("extract("):
                 args = cellgrammar[1][8:-1] #expecting one argument '-3:' or '1:2'
@@ -421,7 +427,7 @@ class Column():
             if cellgrammar[0] == 'predicate':
                 print("Not supported. Cell cannot be a predicate but only a subject or an object")
                 exit(0)
-        date_stamp(store, domain, rdfcell)           
+        #date_stamp(store, domain, rdfcell)           
         if VERBOSE: print("Done for cell: " + cell)
 
 
@@ -666,7 +672,7 @@ def main():
         # Dumping the triplestore
         store.dump()
     delta = time.time() - start_time
-    print("Program executed in: " + str(datetime.timedelta(delta)))
+    print("Program executed in: " + str(timedelta(seconds=delta)))
     print("Goodbye")
     return
 
