@@ -6,7 +6,8 @@
 #============================================
 #!/usr/bin/env python3
 
-import getopt, sys, csv, configparser, os.path, traceback, time
+import getopt, sys, csv, configparser, os.path, traceback, time, os
+from os.path import exists
 
 #Conditional import
 try:
@@ -15,24 +16,28 @@ except ImportError:
     import progressbar as progressbar2 #Windows
 
 from rdflib import Graph, Literal, URIRef, RDF, RDFS, BNode, XSD
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
+from playsound import playsound
+
 
 DATE_PREDICATE = "date_created"
 TODAY = str(date.today())
+SOUND = 'mixkit-achievement-bell-600.wav'
 
 VERBOSE = False
 INTERRUPT = False
 
 
 #============================================ interrupt
-def interrupt():
+def interrupt(str=""):
     '''
     Manual breakpoint
     '''
-    resp = input("Continue? ")
-    if resp.upper() in ["N","NO"]:
-        print("Goodbye!")
-        exit(0)
+    if str == "DEBUG" or INTERRUPT:
+        resp = input("Continue? ")
+        if resp.upper() in ["N","NO"]:
+            print("Goodbye!")
+            exit(0)
 
         
 #============================================ Timer
@@ -625,6 +630,8 @@ def main():
         # print help information and exit:
         usage()
         sys.exit(2)
+    if len(opts) == 0:
+        usage()
     options = None
     for o, a in opts:
         if o in ("-h", "--help"):
@@ -671,6 +678,13 @@ def main():
 
         # Dumping the triplestore
         store.dump()
+    #interrupt("DEBUG")
+    dir = os.path.dirname(os.path.realpath(__file__))
+    music = os.path.join(dir, SOUND)
+    if exists(music):
+        playsound(music)
+    else:
+        print("No sound found")
     delta = time.time() - start_time
     print("Program executed in: " + str(timedelta(seconds=delta)))
     print("Goodbye")
