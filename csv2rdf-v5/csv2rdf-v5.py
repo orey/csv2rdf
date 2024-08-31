@@ -12,12 +12,14 @@ from os.path import exists
 #Conditional import
 try:
     import progressbar2 #Debian
+    playsound = None
 except ImportError:
     import progressbar as progressbar2 #Windows
+    from playsound import playsound
 
 from rdflib import Graph, Literal, URIRef, RDF, RDFS, BNode, XSD
 from datetime import date, timedelta
-from playsound import playsound
+
 
 
 DATE_PREDICATE = "date_created"
@@ -701,7 +703,7 @@ def main():
     #interrupt("DEBUG")
     dir = os.path.dirname(os.path.realpath(__file__))
     music = os.path.join(dir, SOUND)
-    if exists(music):
+    if exists(music) and playsound != None:
         playsound(music)
     else:
         print("No sound found")
