@@ -12,13 +12,25 @@ from os.path import exists
 #Conditional import
 try:
     import progressbar2 #Debian
-    playsound = None
+#    playsound = None
 except ImportError:
     import progressbar as progressbar2 #Windows
-    from playsound import playsound
+#    from playsound import playsound
 
 from rdflib import Graph, Literal, URIRef, RDF, RDFS, BNode, XSD
 from datetime import date, timedelta
+
+#------------------------------------------------- Grammar fields: keys
+CELLROLE = 'cellrole'
+CELLTYPE = 'celltype'
+COLUMNTYPE = 'columntype'
+
+
+#------------------------------------------------- Grammar fields: values
+IGNORE = 'ignore'
+PKEY = 'pkey'
+SUBJECT = 'subject'
+OBJECT = 'object'
 
 
 
@@ -28,6 +40,9 @@ SOUND = 'mixkit-achievement-bell-600.wav'
 
 VERBOSE = False
 INTERRUPT = False
+
+LOG = "run.log"
+FIRST = True
 
 
 #============================================ interrupt
@@ -40,6 +55,30 @@ def interrupt(str=""):
         if resp.upper() in ["N","NO"]:
             print("Goodbye!")
             exit(0)
+
+def myprint(str):
+    global FIRST
+    if FIRST:
+        with open(LOG, "w",encoding='utf-8') as logfile:
+            file.write(str + '\n')
+        FIRST = False
+    else:
+        with open(LOG, "a",encoding='utf-8') as logfile:
+            file.write(str + '\n')
+    print(str)
+        
+def test():
+    myprint("test1")
+    myprint("test2")
+    myprint("test3")
+    myprint("test4")
+
+def countLinesInCSVFile(file):
+    newreader = csv.reader(open(source.file, "r", encoding='utf-8', errors='ignore'), delimiter=delim)
+    nblines = 0
+    for i, row in enumerate(newreader):
+        nblines += 1
+    return nblines
 
         
 #============================================ Timer
@@ -57,48 +96,35 @@ class Timer():
 
 #============================================ Source
 class Source():
-    def __init__(self, name, file, domain, type, prefix, delim, active):
+    def __init__(self, name, file, domain, delim, semantics, active):
         self.name = name
         self.file = file
         self.domain = domain
-        self.type = type
-        self.prefix = prefix
         self.delim = delim
-        self.semantic = False
+        self.semanticfile = semantics
         self.active = active
-    def setSemantic(self, semanticfile):
-        self.semantic = True
-        self.semanticfile = semanticfile
     def print(self):
         print("-----------")
         print("Source: " +  self.name)
         print("File: " + self.file)
         print("Domain: " + self.domain)
-        print("Type: " + self.type)
-        print("Prefix: " + self.prefix)
         print("Delim: " + self.delim)
         print("Active: " + str(self.active))
-        if self.semantic:
-            print("Semantics: " + self.semanticfile)
+        print("Semantics: " + self.semanticfile)
 
 
 #============================================ Options: main conf file
 class Options():
     '''
-    This class reads the option file that is acting as a command file.
-    It is managing several files or several times the same file.
-    Containes the various Source instances
+    self.sources = [ Source1, Source 2, ...]
+    We keep only the active sources
     '''
     # Mandatory fields per csv file
     FILE = 'file'
     DOMAIN = 'domain'
-    TYPE = 'type'
-    PREFIX = 'predicate_prefix'
     DELIMITER = 'delimiter'
-    ACTIVE = 'active'
-
-    # Optional fields
     SEMANTICS = 'semantics'
+    ACTIVE = 'active'
 
     #-----------------------------------------------__init__
     def __init__(self, filename):
@@ -108,25 +134,21 @@ class Options():
         config = configparser.ConfigParser()
         config.read(filename)
         self.sources = []
-        nbactive = 0
         for elem in config.sections():
-            active = False
             if self.ACTIVE in config[elem]:
                 if config[elem][self.ACTIVE] == "True":
-                    active = True
-                    nbactive += 1
-            source = Source(elem,
-                            config[elem][self.FILE],
-                            config[elem][self.DOMAIN],
-                            config[elem][self.TYPE],
-                            config[elem][self.PREFIX],
-                            config[elem][self.DELIMITER],
-                            active)
-            if self.SEMANTICS in config[elem]:
-                source.setSemantic(config[elem][self.SEMANTICS])
-            self.sources.append(source)
-        print("Config file read: found " + str(len(self.sources)) + " source(s) and "
-              + str(nbactive) + " active(s)")
+                    source = Source(elem,
+                                    config[elem][self.FILE],
+                                    config[elem][self.DOMAIN],
+                                    config[elem][self.DELIMITER],
+                                    config[elem][self.SEMANTICS],
+                                    active)
+                    self.sources.append(source)
+        print("Config file read: found "
+              + str(len(config.sections()))
+              + " source(s) and "
+              + str(len(self.sources))
+              + " active(s)")
 
     #-----------------------------------------------print
     def print(self):
@@ -303,7 +325,7 @@ def generate_type_triples(lst, store, domain, isClass):
 
 
 #================================================= Column
-class Column():
+class ColumnOld():
     to_ignore = False
     is_pkey = False
     is_pkey_descr = False
@@ -457,58 +479,95 @@ class Column():
         if VERBOSE: print("Done for cell: " + cell)
 
 
+class Column():
+    def __init__(self,name,cellrole,celltype, columntype, pkey = False):
+        self.name
+        self.cellrole = cellrole
+        self.celltype = celltype
+        self.columntype = columntype
+        self.pkey = pkey
+    def generateTriple(self, store, domain, cellvalue, pkeyvalue):
+        # generate a cell name that can be an IRI
+        cell = format_predicate(cellvalue)
+        # capture the rought string value in a Literal
+        store.add((URIRef(domain+cell),RDFS.label,Literal(row[j])))
+        
+
+        
+class CodeSets():
+    def __init__(self,name,dict):
+        self.name = name
+        self.dict = dict
+    def getValue(self, key):
+        if key in self.dict:
+            return dict[key]
+        else:
+            raise KeyError("Key '" + key + "' not found in section '" + self.name + "' of the grammar file")
+        
+
+
+def findPkeyIndexInHeader(header, pkey):
+    count = 0
+    for elem in header:
+        if elem == pkey:
+            return count
+        else:
+            count += 1
+    # We should never come here
+    return -1
+    
+
+
 #================================================= Grammar
 class Grammar():
-    '''
-    Constructor parses the configuration file
-    Semantic parser generates triples accordingly
-    '''
-    pkeycolumnname = "" # we need to record the name of the column storing the pkey
-    pkeytype = "" # we need the pkey type to generate relevant triples with rdfs:domain and rdfs:range
-    filename = ""
-    columns = None #dictionary of dictionaries: 'name : Column object'
-    lists = None #dictionary of dictionaries: 'name : dictionary of key/values'
-    # Note: we don't keep the configparser instance once the file is parsed
-
-    #----------------------------------------------------_init_
     def __init__(self,filename):
+        # self.columns = { name1 : Column1, name2: Column2, ... }
+        self.columns = {}
+        # self.lists = { name1 : CodeSets1, name2 : CodeSets2, ... }
+        self.lists = {}
+        # record pkey = PKey()
+        self.pkey = None
+
+        #read sections
         if not os.path.isfile(filename):
             raise FileNotFoundError('File "' + filename + '" not found.')
-        self.filename = filename
         config = configparser.ConfigParser()
         config.read(filename)
-        self.columns = dict() 
-        self.lists = dict()
-        #read sections
-        nbsec = 0
-        nblist = 0
         for elem in config.sections():
+            # Getting code sets
             if elem.startswith('*') and elem.endswith('*'):
                 if VERBOSE: print("List found: " + elem)
                 mydict = dict()
+                 # get the key: values defined in grammar
                 for key in config[elem]:
                     mydict[key] = config[elem][key]
-                self.lists[elem] = mydict
-                nblist += 1
-            else:
-                mydict = dict()
-                for key in config[elem]:
-                    mydict[key] = config[elem][key]
-                temp = Column(mydict)
-                # we keep a copy to be able to pass it as a parameter
-                if temp.is_pkey:
-                    self.pkeycolumnname = elem
-                    if VERBOSE: print("pkey column name found: " + elem)
-                    # get pkeytype
-                    self.pkeytype = temp.pkeytype
-                    if VERBOSE: print("pkeytype : " + self.pkeytype)
-                    if INTERRUPT: interrupt()
-                self.columns[elem] = temp
-                if VERBOSE: print("Column section found: " + elem)
-                nbsec += 1
-        print("Found: " + str(nbsec) + " sections and " + str(nblist) + " lists")
-        if self.pkeycolumnname == "":
-            print("pkey column name not found in file. The grammar file cannot be processes. Exiting...")
+                self.lists[elem] = CodeSets(elem, mydict)
+                continue
+            #read all elements in config
+            mydict = dict()
+            for key in config[elem]:
+                mydict[key] = config[elem][key]
+            #pkey
+            if PKEY in mydict:
+                self.pkey = Column(elem,
+                                   PKEY,
+                                   mydict[CELLTYPE],
+                                   "",
+                                   True)
+                continue
+            # Other case
+            self.columns[elem] = Column(elem,
+                                        mydict[CELLROLE],
+                                        mydict[CELLTYPE],
+                                        mydict[COLUMNTYPE])
+        # Error cases and reporting
+        print("Found: "
+              + str(nlen(config.sections()))
+              + " sections and "
+              + str(len(self.lists))
+              + " lists")
+        if self.pkey == None:
+            print("Error: pkey not found in grammar file. Exiting...")
             exit()
 
     #----------------------------------------------------count_applicable_sections
@@ -531,50 +590,42 @@ class Grammar():
         return sections
 
     #----------------------------------------------------semantic_parser
-    def semantic_parser(self, source, store):
-        delim = source.delim
+    def semantic_parser(self, csvfile, domain, delim, store):
         try:
-            # CSV files may contain non UTF8 chars
             reader = csv.reader(open(source.file, "r", encoding='utf-8', errors='ignore'), delimiter=delim)
-
-            # predicates is used to store all headers of the first row but in a RDF manner
-            # because they will be the predicate
-            predicates = []
-            domain = source.domain
-            # Not used in semùantic parser
-            #prefix = source.prefix
-            #mytype = source.type
             tim = Timer()
             pkeyindex = -1
-            #counting the lines with a specific reader
-            newreader = csv.reader(open(source.file, "r", encoding='utf-8', errors='ignore'), delimiter=delim)
-            nblines = 0
-            for i, row in enumerate(newreader):
-                nblines += 1
-            print("------\nSource: " + source .name + "\nNumber of lines to process: " + str(nblines))
+            nblines = countLinesInCSVFile(csvfile)
             bar = progressbar2.ProgressBar(max_value=nblines)
-            # main loop
-            for i, row in enumerate(reader):
-                bar.update(i)
-                #print(str(i), end='|')
-                #print("CSV data file: " + source.file + " - line " + str(i))
-                # dealing with CSV header
-                if i == 0:
-                    for i in range(0,len(row)):
-                        # get the pkey value to generate all triples
-                        if row[i] == self.pkeycolumnname:
-                            pkeyindex = i
-                            if VERBOSE: print("pkeyindex = " + str(i))
-                    for columnheader in row:
-                        predicates.append(columnheader) # they are added with potential spaces and ""
-                    if VERBOSE:
-                        print(predicates)
+            header = None
+            # predicates are the header values that are used to generate triples
+            count = 0
+            for row in reader:
+                bar.update(count)
+                # header
+                if count == 0:
+                    header = row
+                    # Column header must be the name of the Columns objects
+                    for columnheader in header:
+                        if columnheader not in self.columns:
+                            print("Error: columnheader '" + columnheader
+                                  + "' not found in grammar file. Exiting...")
+                            exit()
+                    pkeyindex = findPkeyIndexInHeader(header, pkey)
+                    if pkeyindex == -1:
+                        print("Error: pkey not found in header. Exiting...")
+                        exit()
+                    count +=1
                 else:
-                    if VERBOSE:
-                        print("Row #" + str(i))
-                        print(row)
+                    pkeyvalue = row[pkeyindex]
                     # general case: standard row
                     for j in range(0,len(row)):
+                        for columnheader in header:
+                            col = self.columns[columnheader]
+                            col.generateTriple(store, domain,row[j], pkeyvalue)
+                        
+
+                        
                         # 1. get the cell value and protect versus crappy data
                         cell = format_predicate(row[j])
                         store.add((URIRef(domain+cell),RDFS.label,Literal(row[j])))
@@ -646,8 +697,8 @@ def to_int(a, range):
 def main():
     try:
         # Option 't' is a hidden option
-        opts, args = getopt.getopt(sys.argv[1:], "c:ih",
-                                   ["conf=", "interactive", "help"])
+        opts, args = getopt.getopt(sys.argv[1:], "c:h",
+                                   ["conf=", "help"])
     except getopt.GetoptError:
         # print help information and exit:
         usage()
@@ -659,12 +710,6 @@ def main():
         if o in ("-h", "--help"):
             usage()
             sys.exit()
-        if o in ("-i", "--interactive"):
-            print("Interactive mode chosen")
-            global VERBOSE
-            VERBOSE = True
-            global INTERRUPT
-            INTERRUPT = True
         if o in ("-c", "--conf"):
             options = a
             print("Configuration file: " + a)
@@ -676,39 +721,23 @@ def main():
     opt = Options(options)
     opt.print()
 
-    start_time = time.time()
-    # Supporting multiple stores, one by source
-    storeindex = 0
-    
+    # main loop
+    globaltimer = Timer()
     for source in opt.sources:
-        storeindex +=1
-        if not source.active:
-            print("The source " + source.name + " is declared as inactive. Skipping...")
-            continue
-        
         # determine name of the triplestore
         output = source.name + ".ttl"
         store = RDFStore(output)
 
-        # route to the proper parser
-        if not source.semantic:
-            default_csv_parser(source, store)
-        else:
-            # Parsing the grammar file
-            gram = Grammar(source.semanticfile)
-            gram.semantic_parser(source, store)
+        # Parsing the grammar file
+        gram = Grammar(source.semanticfile)
+
+        # Generating triples
+        gram.semantic_parser(source.file, source.domain, source.delim, store)
 
         # Dumping the triplestore
         store.dump()
-    #interrupt("DEBUG")
-    dir = os.path.dirname(os.path.realpath(__file__))
-    music = os.path.join(dir, SOUND)
-    if exists(music) and playsound != None:
-        playsound(music)
-    else:
-        print("No sound found")
-    delta = time.time() - start_time
-    print("Program executed in: " + str(timedelta(seconds=delta)))
+
+    globaltimer.stop()
     print("Goodbye")
     return
 
