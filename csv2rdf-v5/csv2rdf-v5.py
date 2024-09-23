@@ -28,6 +28,7 @@ SEMANTICS = 'semantics'
 ACTIVE = 'active'
 
 #------------------------------------------------- Grammar fields: keys
+MULTITREATMENT = '$'
 CELLROLE = 'cellrole'
 CELLTYPE = 'celltype'
 COLUMNTYPE = 'columntype'
@@ -50,6 +51,20 @@ DATE = 'date'
 
 DATE_PREDICATE = "date_created"
 TODAY = str(date.today())
+
+ONTO_REQ = "ontology-requirements.txt"
+ONTO_FIRST = True
+
+def to_define_in_ontology(str):
+    global ONTO_FIRST
+    if ONTO_FIRST:
+        with open(ONTO_REQ, 'w', encoding=ENCODING, newline='\n') as output:
+            output.write(str)
+            ONTO_FIRST = False
+    else:
+        with open(ONTO_REQ, 'a', encoding=ENCODING, newline='\n') as output:
+            output.write(str)
+
 
 #============================================ Source
 class Source():
@@ -76,7 +91,7 @@ class Options():
     self.sources = [ Source1, Source 2, ...]
     We keep only the active sources
     '''
-    #-----------------------------------------------__init__
+    #--- __init__
     def __init__(self, filename):
         if not os.path.isfile(filename):
             raise FileNotFoundError('File "' + filename + '" not found.')
@@ -99,7 +114,7 @@ class Options():
               + " source(s) and "
               + str(len(self.sources))
               + " active(s)")
-    #-----------------------------------------------print
+    #--- print
     def print(self):
         for source in self.sources:
             source.print()
@@ -267,6 +282,10 @@ class ColumnOld():
             # there are neither 'columns' nor column types
             return
 
+        # taken into account
+        # reprendre ici
+
+        
         #=== General case ===
         cellgrammar = self.mydict['cell'].split(',')     # simple or with command
         celltypes = self.mydict['celltypes'].split(',')  # hierarchy of types, last one being rdf/rdfs
@@ -374,97 +393,112 @@ class ColumnOld():
         #date_stamp(store, domain, rdfcell)           
         if VERBOSE: print("Done for cell: " + cell)
 
-
+#================================================================ Column, root class
 class Column():
-    def __init__(self, domain, name, cellrole,celltype, columntype, pkey = False):
+    def __init__(self, domain, name, lists, cellrole, celltype, columntype, pkey = False):
         self.domain = domain
-        self.columnname = name #name of the column in CSV must be the exact same as the name in the grammar section
+        self.columnname = name #name of the column in CSV must begin by the same (case of the $x en of sections)
+        self.lists = lists
         self.cellrole = cellrole
         self.celltype = celltype
         self.columntype = columntype
         self.pkey = pkey
-    def generate_triples(self, store, domain, cellvalue, pkeyvalue):
+        self.csvindex = -1
+    def generate_triples(self, store, cellvalue, pkeyvalue):
         pass
 
-class PKey(Column):
-    def get_IRI(self):
-        
-    # for this class, cellvalue and pkvalue are identical, pkeyvalue is not used
-    def generate_triples(self, store, domain, cellvalue, pkeyvalue):
-        # 1. Type the pkey
-        store.add((
-            URIRef(domain+cellvalue),
-            RDF.type,
-            URIRef(domain+celltype)
-        ))
 
+#================================================================ PKey
+class PKey(Column):
+    # for this class, cellvalue and pkvalue are identical, pkeyvalue is not used
+    def generate_triples(self, store, cellvalue, pkeyvalue):
+        # 1. format the predicate because the value can be dirty
+        pred = format_predicate(cellvalue)
+        # 2. associate original value as a label
+        store.add(( UIRRef(self.domain + pred),
+                    RDFS.label,
+                    Literal(cellvalue)))
+        # 3. get a valid predicate for the celltype
+        celltypepred = format_predicate(self.celltype)
+        # to keep track of the ontology definitions required
+        to_define_in_ontology(self.domain + celltypepred)
+
+        # 4. create the description of the type
+        store.add(( UIRRef(self.domain + celltypepred),
+                    RDFS.label,
+                    Literal(self.celltype)))
+        
+        # 3. Type the pkey
+        store.add(( URIRef(self.domain + pred),
+                    RDF.type,
+                    URIRef(self.domain + celltypepred)))
+
+
+#================================================================ PKey
 class IRIColumn(Column):
-    def generate_triples(self, store, domain, cellvalue, pkeyvalue):
+    def generate_triples(self, store, cellvalue, pkeyvalue):
         # 1. generate a cell name that can be an IRI
         cell = format_predicate(cellvalue)
         # 2. capture the rought string value in a Literal
         store.add((
-            URIRef(domain+cell),
+            URIRef(self.domain+cell),
             RDFS.label,
             Literal(row[j])
         ))
         # 3. type the cell value
         store.add((
-            URIRef(domain+cell),
+            URIRef(self.domain+cell),
             RDF.type,
-            URIRef(domain+celltype)
+            URIRef(self.domain+celltype)
         ))
         # 4. generate the triple with the pkey
         if self.cellrole == SUBJECT:
             store.add((
-                URIRef(domain+cell),
-                URIRef(domain+columntype),
-                URIRef(domain+pkeyvalue)
+                URIRef(self.domain+cell),
+                URIRef(self.domain+columntype),
+                URIRef(self.domain+pkeyvalue)
             ))
         else:
             store.add((
-                URIRef(domain+pkeyvalue),
-                URIRef(domain+columntype),
-                URIRef(domain+cell)
+                URIRef(self.domain+pkeyvalue),
+                URIRef(self.domain+columntype),
+                URIRef(self.domain+cell)
             ))
 
 class StringColumn(Column):
-    def generate_triples(self, store, domain, cellvalue, pkeyvalue):
+    def generate_triples(self, store, cellvalue, pkeyvalue):
         store.add((
-            URIRef(domain+pkeyvalue),
-            URIRef(domain+columntype),
+            URIRef(self.domain+pkeyvalue),
+            URIRef(self.domain+columntype),
             Literal(cellvalue)
         ))
         
 class IntegerColumn(Column):
-    def generate_triples(self, store, domain, cellvalue, pkeyvalue):
+    def generate_triples(self, store, cellvalue, pkeyvalue):
         store.add((
-            URIRef(domain+pkeyvalue),
-            URIRef(domain+columntype),
+            URIRef(self.domain+pkeyvalue),
+            URIRef(self.domain+columntype),
             Literal(cellvalue, datatype=XSD.integer)
         ))
         
 class FloatColumn(Column):
-    def generate_triples(self, store, domain, cellvalue, pkeyvalue):
+    def generate_triples(self, store, cellvalue, pkeyvalue):
         store.add((
-            URIRef(domain+pkeyvalue),
-            URIRef(domain+columntype),
+            URIRef(self.domain+pkeyvalue),
+            URIRef(self.domain+columntype),
             Literal(cellvalue, datatype=XSD.float)
         ))
             
 class DateColumn(Column):
-    def generate_triples(self, store, domain, cellvalue, pkeyvalue):
+    def generate_triples(self, store, cellvalue, pkeyvalue):
         store.add((
-            URIRef(domain+pkeyvalue),
-            URIRef(domain+columntype),
+            URIRef(self.domain+pkeyvalue),
+            URIRef(self.domain+columntype),
             Literal(cellvalue, datatype=XSD.date) #'2007-01-01'
         ))
 
-        
-        
 
-        
-        
+#========================================================== Code sets        
 class CodeSets():
     def __init__(self,name,dict):
         self.name = name
@@ -530,9 +564,13 @@ class Grammar():
             if CELLROLE not in mydict:
                 print("Error: '" + CELLROLE + "' is mandatory in grammar section. Exiting...")
                 exit()
+            # We do not record the Column and will not create a class
+            if mydict[CELLROLE] == IGNORE:
+                continue
             if mydict[CELLROLE] == PKEY:
                 self.pkey = PKey(domain,
                                  elem,
+                                 self.lists,
                                  PKEY,
                                  mydict[CELLTYPE],
                                  "",
@@ -545,30 +583,36 @@ class Grammar():
             if celltype == STRING:
                 self.columns[elem] = StringColumn(domain,
                                                   elem,
+                                                  self.lists,
                                                   mydict[CELLROLE],
                                                   STRING,
                                                   mydict[COLUMNTYPE])
             elif celltype == INTEGER:
+                                                  self.lists,
                 self.columns[elem] = IntegerColumn(domain,
                                                    elem,
+                                                   self.lists,
                                                    mydict[CELLROLE],
                                                    INTEGER,
                                                    mydict[COLUMNTYPE])
             elif celltype == FLOAT:
                 self.columns[elem] = FloatColumn(domain,
                                                  elem,
+                                                 self.lists,
                                                  mydict[CELLROLE],
                                                  FLOAT,
                                                  mydict[COLUMNTYPE])
             elif celltype == DATE:
                 self.columns[elem] = DateColumn(domain,
                                                 elem,
+                                                self.lists,
                                                 mydict[CELLROLE],
                                                 DATE,
                                                 mydict[COLUMNTYPE])
             else:
                 self.columns[elem] = IRIColumn(domain,
                                                elem,
+                                               self.lists,
                                                mydict[CELLROLE],
                                                mydict[CELLTYPE],
                                                mydict[COLUMNTYPE])
@@ -582,25 +626,6 @@ class Grammar():
         if self.pkey == None:
             print("Error: pkey not found in grammar file. Exiting...")
             exit()
-
-    #----------------------------------------------------count_applicable_sections
-    def get_applicable_sections(self,key):
-        '''
-        Sections applicable cannot be 'cell = ignore'.
-        Most applicable sections will be unique.
-        Several sections may be applicable of several start by the name of 
-        the colum + '$1' or '$2' at the end.
-        '''
-        sections = []
-        keys = self.columns.keys()
-        for k in keys:
-            if k.startswith(key):
-                if self.columns[k].to_ignore:
-                    # we have to ignore the sections flagged as ignorable 'cell = ignore'
-                    return None
-                else:
-                    sections.append(self.columns[k])
-        return sections
 
     #----------------------------------------------------semantic_parser
     def semantic_parser(self, csvfile, domain, delim, store):
@@ -621,71 +646,41 @@ class Grammar():
                     header = row
                     # 1. the grammar file section names should be included into the headers
                     # note : it is not mandatory to take all the headers
-                    for colname in self.columns:
-                        if colname not in header:
+                    for col in self.columns:
+                        # management of the ending $1 $2 etc.
+                        if col.name[-2] == MULTITREATMENT: # We only support 9 diff.treatments on the same cell value
+                            temp = col.name.split(MULTITREATMENT)[0]
+                        else:
+                            temp = col.name
+                        if temp not in header:
                             print("Error: grammar section name '" + colname
                                   + "' not found in CSV file. Exiting...")
                             exit()
-                    # 2. sort columns in the same order than the CSV and get index for primary key
-                    i = 0
-                    for elem in header:
-                        if elem in self.columns[elem]:
-                            temp = self.columns[elem]
-                            if temp.pkey:
-                                pkeyindex = i
-                            self.orderedcols[i] = self.columns[elem]
-                        else:
-                            myprint("Information: '" + elem + "' column not in grammar file" )
-                        i +=1
+                        i = 0
+                        for headerelem in header:
+                            if headerelem == temp:
+                                col.index = i
+                                if col.pkey:
+                                    pkeyindex = i
+                                break
+                            i += 1
                     if pkeyindex == -1:
                         print("Error: could not find pkey in CSV header. Exiting...")
                         exit()
                     # increment CSV line number
                     count +=1
                 else:
-                    pkeyobj = row[pkeyindex]
+                    pkeyvalue = row[pkeyindex]
                     # general case: standard row
-                    for j in range(0,len(row)):
-                        col = self.orderedcols[j]
-                        col.generate_triple(store, domain, row[j], pkeyobj)
-
-                        #------------------reprendre ici
-
-                        
-                        # 2. get pkeyvalue because it will be in the triple
-                        pkeyvalue = format_predicate(row[pkeyindex])
-                        # 3. get the standard column name
-                        colname = format_predicate(predicates[j])
-                        # 4. get the applicable Columns objects
-                        #    there may be several if several treatments are associated to a
-                        #    single column ('[VAPMOV$1]' and '[VAPMOV$1]'
-                        # Checks for 'ignore' sections and for 'multiple actions' sections
-                        if colname != "": # this happens in some source files
-                            sections = self.get_applicable_sections(colname)
-                            if sections == None:
-                                if VERBOSE:
-                                    print("------\nInfo: Section(s) starting by "
-                                          + colname
-                                          + " ignored due to grammar")
-                            else:
-                                for s in sections:
-                                    if VERBOSE:
-                                        print("------\nDomain: " + domain)
-                                        print("Cell value: " + cell)
-                                        print("pkeyvalue: " + pkeyvalue)
-                                    s.generate_triples(store,domain,cell,pkeyvalue,self.pkeytype,self.lists)
+                    for col in self.columns:
+                        col.generate_triples(store, row[col.index], pkeyvalue, lists)
+                    count +=1
             tim.stop()
         except csv.Error as e:
             print("Error caught in loading csv file: " + f)
             print(e)
             sys.exit(1)
-'''
-        except Exception as e:
-            print('Unknown error')
-            print(type(e))
-            print(e.args)
-            print(e)
-'''
+    print("Information: " + str(count) + " csv row converted")
 
 
 #================================================= usage
