@@ -1,4 +1,4 @@
-import csv
+import csv, time
 
 LOG = "run.log"
 FIRST = True
@@ -33,7 +33,7 @@ def interrupt(obj):
 
 #=========================================== count lines in csv file
 def countLinesInCSVFile(file):
-    newreader = csv.reader(open(source.file, "r", encoding='utf-8', errors='ignore'), delimiter=delim)
+    newreader = csv.reader(open(file, "r", encoding='utf-8', errors='ignore'))
     nblines = 0
     for i, row in enumerate(newreader):
         nblines += 1

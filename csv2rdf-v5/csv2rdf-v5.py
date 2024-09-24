@@ -18,7 +18,12 @@ except ImportError:
 from rdflib import Graph, Literal, URIRef, RDF, RDFS, BNode, XSD
 from datetime import date, timedelta
 
-from tools import myprint
+import sys
+sys.path.append('.')
+from tools import myprint, Timer, interrupt, countLinesInCSVFile
+
+#ENCODING = "utf8"
+ENCODING = "latin_1"
 
 #----------------------------------------- Mandatory fields per csv file
 FILE = 'file' #full path or relative path
@@ -40,30 +45,44 @@ SUBJECT = 'subject'
 OBJECT = 'object'
 
 # types
-STRING = 'string'
-INTEGER = 'integer'
-FLOAT = 'float'
-DATE = 'date'
+GRAMMAR_TYPES = {
+    "string":  XSD.string, 
+    "integer": XSD.integer,
+    "float":   XSD.float,
+    "date":    XSD.date
+}
 
 
+#--- Alteration modes
+NONE = 0
+MAP_ALL = 1
+MAP_PART = 2
+EXTRACT = 3
+PREFIX = 4
 
 
-
+#================================================= format_date: not used
 DATE_PREDICATE = "date_created"
 TODAY = str(date.today())
+def date_stamp(store, domain, URI):
+    store.add((URI,
+               URIRef(domain + DATE_PREDICATE),
+               URIRef(Literal(TODAY, datatype=XSD.date))))
 
-ONTO_REQ = "ontology-requirements.txt"
-ONTO_FIRST = True
 
-def to_define_in_ontology(str):
-    global ONTO_FIRST
-    if ONTO_FIRST:
-        with open(ONTO_REQ, 'w', encoding=ENCODING, newline='\n') as output:
-            output.write(str)
-            ONTO_FIRST = False
-    else:
-        with open(ONTO_REQ, 'a', encoding=ENCODING, newline='\n') as output:
-            output.write(str)
+#================================================= to-define-in-ontology
+ONTO_REQ = "to-define-in-ontology.txt"
+DEFINE = []
+
+def to_define_in_ontology(*args):
+    for str in args:
+        if str not in DEFINE:
+            DEFINE.append(str)
+
+def dump_define():            
+    with open(ONTO_REQ, 'w', encoding=ENCODING, newline='\n') as output:
+        for str in DEFINE:
+            output.write(str + '\n')
 
 
 #============================================ Source
@@ -100,14 +119,14 @@ class Options():
         config.read(filename)
         self.sources = []
         for elem in config.sections():
-            if self.ACTIVE in config[elem]:
-                if config[elem][self.ACTIVE] == "True":
+            if ACTIVE in config[elem]:
+                if config[elem][ACTIVE] == "True":
                     source = Source(elem,
-                                    config[elem][self.FILE],
-                                    config[elem][self.DOMAIN],
-                                    config[elem][self.DELIMITER],
-                                    config[elem][self.SEMANTICS],
-                                    active)
+                                    config[elem][FILE],
+                                    config[elem][DOMAIN],
+                                    config[elem][DELIMITER],
+                                    config[elem][SEMANTICS],
+                                    config[elem][ACTIVE])
                     self.sources.append(source)
         print("Config file read: found "
               + str(len(config.sections()))
@@ -118,54 +137,8 @@ class Options():
     def print(self):
         for source in self.sources:
             source.print()
-    
 
-#================================================= RDFStore
-class RDFStoreChunks():
-    '''
-    This class wraps the RDF store proposed by rdflib
-    TODO Add more output formats in dump_store
-    '''
-    def __init__(self, name, chunks=False):
-        # Expecting name to be something like "toto"
-        self.chunks = chunks
-        # We have at leats one file
-        self.fileindex = 0
-        self.name = name
-        # These variables are not useful in case we have no CPU problems
-        self.counter = 0
-        self.MAX = 20000
-        # To check before writing
-        self.interrupt = interrupt
-        # We can have many stores
-        self.stores = [Graph()]
-    def get_nextname(self):
-        self.fileindex += 1
-        return self.name.split('.')[0] + '-' + str(self.fileindex)  + '.ttl'
-    def get_store(self):
-        return self.store
-
-    def add(self, triple):
-        if VERBOSE: print(triple)
-        if INTERRUPT: interrupt()
-        self.stores[self.fileindex].add(triple)
-        if self.chunks:
-            self.counter += 1
-            if self.counter >= self.MAX:
-                self.fileindex +=1
-                self.stores.append(Graph())
-                self.counter = 0
             
-    def dump(self):
-        print("Dumping stores")
-        tim = Timer()
-        for i in range(0, len(self.stores)):
-            self.stores[i].serialize(self.name.split('.')[0] + '-' + str(i)  + '.ttl',
-                            format='turtle')
-        tim.stop()
-        print("Stores dumped")
-
-
 #================================================= RDFStore
 class RDFStore():
     '''
@@ -179,10 +152,6 @@ class RDFStore():
     def get_store(self):
         return self.store
     def add(self, triple):
-        if VERBOSE:
-            (a, b, c) = triple
-            print(a.n3() + " " + b.n3() + " " + c.n3() + " .")
-        if INTERRUPT: interrupt()
         self.store.add(triple)
     def dump(self):
         print("Dumping store")
@@ -194,7 +163,7 @@ class RDFStore():
 
 
 #================================================= format_predicate
-def format_predicate(pred):
+def format_URI(pred):
     new = ''
     for i, c in enumerate(pred):
         if c in [' ', '-', '/', '\\', '(',')',',',
@@ -207,326 +176,171 @@ def format_predicate(pred):
     return new
 
 
-#================================================= format_date
-def date_stamp(store, domain, URI):
-    store.add((URI,
-               URIRef(domain + DATE_PREDICATE),
-               URIRef(Literal(TODAY, datatype=XSD.date))))
-
-#================================================= generate_type_triples
-def generate_type_triples(lst, store, domain, isClass):
-    # First, all types are instances of a super class
-    for i in range(0, len(lst)):
-        if isClass:
-            store.add((URIRef(domain + lst[i]), RDF.type, RDFS.Class))
-        else:
-            store.add((URIRef(domain + lst[i]), RDF.type, RDF.Property))
-    # generate the chain of types
-    if len(lst) < 1:
-        return
-    for i in range(0, len(lst)-1):
-        lower = lst[i]
-        new = lst[i+1]
-        previoustype = URIRef(domain + lst[i])
-        nexttype     = URIRef(domain + lst[i+1])
-        if isClass:
-            store.add((previoustype, RDFS.subClassOf, nexttype))
-        else:
-            store.add((previoustype, RDFS.subPropertyOf, nexttype))
-
-
-#================================================= Column
-class ColumnOld():
-    to_ignore = False
-    is_pkey = False
-    is_pkey_descr = False
-    mydict = {}
-
-    #------------------------------------------__init__
-    def __init__(self,mydict):
-        self.mydict = mydict
-        if mydict['cell'] == 'ignore':
-            self.to_ignore = True
-        elif mydict['cell'] == 'pkey':
-            self.is_pkey = True
-            self.pkeytype = mydict['celltypes'].split(',')[0]
-        elif mydict['celltypes'] == 'string':
-            self.is_pkey_descr = True
-            
-    #------------------------------------------generate_triples
-    def generate_triples(self,store,domain,cell,pkey,pkeytype,lists):
-        #=== 3 particular cases===
-        # A. Ignore the cell
-        if self.to_ignore:
-            #should not happen because ignorable sectons are intercepted before
-            return
-        # B. The cell is the description of the  pkey, so we generate a rdfs:comment
-        if self.is_pkey_descr:
-            store.add((URIRef(domain + pkey),
-                       RDFS.comment,
-                       Literal(cell)))
-            return
-        # C. This is the kpey cell, so it is simpler than the other cells
-        if self.is_pkey:
-            mytype = self.mydict['celltypes'].split(',')[0]
-            cellpred = format_predicate(cell)
-            store.add((URIRef(domain + cellpred), RDFS.label, Literal(cell)))
-            mytypeobj = format_predicate(mytype)
-            store.add((URIRef(domain + mytypeobj), RDFS.label, Literal(mytype)))
-            store.add((URIRef(domain + cellpred),
-                       RDF.type,
-                       URIRef(domain + mytypeobj)))
-            # removing date generation
-            #date_stamp(store, domain, URIRef(domain + format_predicate(cell)))
-            generate_type_triples(self.mydict['celltypes'].split(','), store, domain, True)
-            # there are neither 'columns' nor column types
-            return
-
-        # taken into account
-        # reprendre ici
-
-        
-        #=== General case ===
-        cellgrammar = self.mydict['cell'].split(',')     # simple or with command
-        celltypes = self.mydict['celltypes'].split(',')  # hierarchy of types, last one being rdf/rdfs
-        coltypes = self.mydict['columntypes'].split(',') # hierarchy of types, last one being rdf/rdfs
-
-        # init before treatments
-        newcell = ""
-        # There are 3 ways to alter the cell value (there could be much more!)
-        if len(cellgrammar) != 1:
-            newcell = ""
-            # ALTER 1: mapping the value of the cell or the value of a part of the cell with a key/value list
-            if cellgrammar[1].startswith("map("):
-                args = (cellgrammar[1][4:-1]).split(';')
-                # expecting 2 arguments 'all;*suppliers*' or '1:2;*configs*'
-                if VERBOSE:
-                    print("cellgrammar = ")
-                    print(cellgrammar[1])
-                    print("args = ")
-                    print(args)
-                maptable = lists[args[1]] #getting dict
-                if args[0] == 'all':
-                    if cell.lower() in maptable:
-                        newcell = maptable[cell.lower()]
-                    else:
-                        #print("Strange: " + cell + " is not in maptable")
-                        #print(maptable)
-                        #interrupt()
-                        if cell.strip() != "":
-                            newcell = cell
-                        else:
-                            newcell = "STRANGE"
-                else:
-                    [myinf,mymax] = args[0].split(":")
-                    myinfchar = int(myinf) if (myinf != "") else 0
-                    mymaxchar = int(mymax) if (mymax != "") else 0
-                    temp = cell[myinfchar:mymaxchar].lower()
-                    if temp in maptable:
-                        newcell = maptable[temp]
-                    else:
-                        #print("Strange: " + temp + " is not in maptable")
-                        #print(maptable)
-                        #interrupt()
-                        if temp.strip() != "":
-                            newcell = temp
-                        else:
-                            newcell = "STRANGE"
-            # ALTER 2: extracting info from the cell value itself
-            elif cellgrammar[1].startswith("extract("):
-                args = cellgrammar[1][8:-1] #expecting one argument '-3:' or '1:2'
-                [myinf,mymax] = args.split(":")
-                myinfchar = int(myinf) if (myinf != "") else 0
-                mymaxchar = int(mymax) if (mymax != "") else 0
-                newcell = cell[myinfchar:mymaxchar]
-            # ALTER 3: adding a prefix to the cell value
-            elif cellgrammar[1].startswith("prefix("):
-                args = cellgrammar[1][7:-1] #expecting one arg such as 'toto_' or 'gnu_'
-                newcell = args + cell
-            else:
-                print("Unknown command: " + cellgrammar[1] + " Exiting...")
-                exit(0)
-        else:
-            # ALTER 0: we keep the original value
-            newcell = cell
-        
-        # Main generation algorithm
-        # 0. Define readable variables
-        prednewcell = format_predicate(newcell)
-        store.add((URIRef(domain + prednewcell), RDFS.label, Literal(newcell)))
-        rdfcell     = URIRef(domain + prednewcell)
-
-        rdfcelltype = URIRef(domain + format_predicate(celltypes[0]))
-
-        rdfcoltype  = URIRef(domain + format_predicate(coltypes[0]))
-
-        predpkey = format_predicate(pkey)
-        store.add((URIRef(domain + predpkey), RDFS.label, Literal(pkey)))
-        rdfpkey     = URIRef(domain + predpkey)
-        
-        rdfpkeytype = URIRef(domain + format_predicate(pkeytype))
-                         
-        # 1. we have to type the cell
-        store.add((rdfcell, RDF.type, rdfcelltype))
-        
-        # 2. we generate the standard triple + the domain and range of the relationship
-
-        # The 2 first cases are standard and should be used 100% of the case
-        if cellgrammar[0] == 'subject':
-            # standard triple: cell is at the intersection of line and column
-            store.add((rdfcell,    rdfcoltype,  rdfpkey))
-            store.add((rdfcoltype, RDFS.domain, rdfcelltype))
-            store.add((rdfcoltype, RDFS.range,  rdfpkeytype))
-            generate_type_triples(celltypes, store, domain, True)
-            generate_type_triples(coltypes,  store, domain, False)
-        elif cellgrammar[0] == 'object':
-            store.add((rdfpkey,    rdfcoltype,  rdfcell))
-            store.add((rdfcoltype, RDFS.domain, rdfpkeytype))
-            store.add((rdfcoltype, RDFS.range,  rdfcelltype))
-            generate_type_triples(celltypes, store, domain, True)
-            generate_type_triples(coltypes,  store, domain, False)
-        else:
-            # Maybe we'll need this case to be implemented one day but I have doubts about it
-            if cellgrammar[0] == 'predicate':
-                print("Not supported. Cell cannot be a predicate but only a subject or an object")
-                exit(0)
-        #date_stamp(store, domain, rdfcell)           
-        if VERBOSE: print("Done for cell: " + cell)
-
 #================================================================ Column, root class
 class Column():
-    def __init__(self, domain, name, lists, cellrole, celltype, columntype, pkey = False):
+    def __init__(self, domain, columnname, lists, cellrole, celltype, columntype, ispkey = False):
         self.domain = domain
-        self.columnname = name #name of the column in CSV must begin by the same (case of the $x en of sections)
+        #name of the column in CSV must begin by the same
+        #(case of the $x en of sections)
+        self.columnname = columnname 
         self.lists = lists
         self.cellrole = cellrole
         self.celltype = celltype
         self.columntype = columntype
-        self.pkey = pkey
+        self.ispkey = ispkey
         self.csvindex = -1
-    def generate_triples(self, store, cellvalue, pkeyvalue):
+    def generate_triples(self, store, cellvalue, pkeyvalue, pkeytype):
         pass
 
 
 #================================================================ PKey
 class PKey(Column):
     # for this class, cellvalue and pkvalue are identical, pkeyvalue is not used
-    def generate_triples(self, store, cellvalue, pkeyvalue):
+    def generate_triples(self, store, cellvalue, pkeyvalue, pkeytype):
         # 1. format the predicate because the value can be dirty
-        pred = format_predicate(cellvalue)
-        # 2. associate original value as a label
-        store.add(( UIRRef(self.domain + pred),
-                    RDFS.label,
-                    Literal(cellvalue)))
-        # 3. get a valid predicate for the celltype
-        celltypepred = format_predicate(self.celltype)
-        # to keep track of the ontology definitions required
-        to_define_in_ontology(self.domain + celltypepred)
-
-        # 4. create the description of the type
-        store.add(( UIRRef(self.domain + celltypepred),
-                    RDFS.label,
-                    Literal(self.celltype)))
+        cellvalueURI  = URIRef(self.domain + format_URI(cellvalue))
+        celltypeURI   = URIRef(self.domain + format_URI(self.celltype))
         
-        # 3. Type the pkey
-        store.add(( URIRef(self.domain + pred),
-                    RDF.type,
-                    URIRef(self.domain + celltypepred)))
+        # 2. associate original values as a label
+        store.add(( cellvalueURI, RDFS.label, Literal(cellvalue)))
+        store.add(( celltypeURI,  RDFS.label, Literal(self.celltype)))
+        
+        # 3. to keep track of the ontology definitions required
+        to_define_in_ontology(celltypeURI.n3())
+
+        # 4. Type the pkey
+        store.add(( cellvalueURI, RDF.type, celltypeURI))
 
 
 #================================================================ PKey
-class IRIColumn(Column):
-    def generate_triples(self, store, cellvalue, pkeyvalue):
-        # 1. generate a cell name that can be an IRI
-        cell = format_predicate(cellvalue)
-        # 2. capture the rought string value in a Literal
-        store.add((
-            URIRef(self.domain+cell),
-            RDFS.label,
-            Literal(row[j])
-        ))
-        # 3. type the cell value
-        store.add((
-            URIRef(self.domain+cell),
-            RDF.type,
-            URIRef(self.domain+celltype)
-        ))
-        # 4. generate the triple with the pkey
-        if self.cellrole == SUBJECT:
-            store.add((
-                URIRef(self.domain+cell),
-                URIRef(self.domain+columntype),
-                URIRef(self.domain+pkeyvalue)
-            ))
-        else:
-            store.add((
-                URIRef(self.domain+pkeyvalue),
-                URIRef(self.domain+columntype),
-                URIRef(self.domain+cell)
-            ))
-
-class StringColumn(Column):
-    def generate_triples(self, store, cellvalue, pkeyvalue):
-        store.add((
-            URIRef(self.domain+pkeyvalue),
-            URIRef(self.domain+columntype),
-            Literal(cellvalue)
-        ))
-        
-class IntegerColumn(Column):
-    def generate_triples(self, store, cellvalue, pkeyvalue):
-        store.add((
-            URIRef(self.domain+pkeyvalue),
-            URIRef(self.domain+columntype),
-            Literal(cellvalue, datatype=XSD.integer)
-        ))
-        
-class FloatColumn(Column):
-    def generate_triples(self, store, cellvalue, pkeyvalue):
-        store.add((
-            URIRef(self.domain+pkeyvalue),
-            URIRef(self.domain+columntype),
-            Literal(cellvalue, datatype=XSD.float)
-        ))
+class URIColumn(Column):
+    def __init__(self, domain, name, lists, cellrole, celltype, columntype, pkey = False):
+        super().__init__(domain, name, lists, cellrole, celltype, columntype, False)
+        self.altermode = NONE
+        self.maptable = None
+        self.myinfchar = -1
+        self.mymaxchar = -1
+        self.prefix = ""
+        # management of alteration of cell value
+        cellgrammar = self.cellrole.split(',')
+        if len(cellgrammar) != 1:
+            # ALTER 1: mapping the value of the cell
+            # or the value of a part of the cell with a key/value list
+            if cellgrammar[1].startswith("map("):
+                args = (cellgrammar[1][4:-1]).split(';')
+                # expecting 2 arguments 'all;*suppliers*' or '1:2;*configs*'
+                self.maptable = lists[args[1]] #getting dict - dict object
+                if args[0] == 'all':
+                    self.altermode = MAP_ALL
+                else:
+                    [myinf,mymax] = args[0].split(":")
+                    self.myinfchar = int(myinf) if (myinf != "") else 0
+                    self.mymaxchar = int(mymax) if (mymax != "") else 0
+                    self.altermode = MAP_PART
+            # ALTER 2: extracting info from the cell value itself
+            elif cellgrammar[1].startswith("extract("):
+                args = cellgrammar[1][8:-1] #expecting one argument '-3:' or '1:2'
+                [myinf,mymax] = args.split(":")
+                self.myinfchar = int(myinf) if (myinf != "") else 0
+                self.mymaxchar = int(mymax) if (mymax != "") else 0
+                self.altermode = EXTRACT
+            # ALTER 3: adding a prefix to the cell value
+            elif cellgrammar[1].startswith("prefix("):
+                self.prefix = cellgrammar[1][7:-1] #expecting one arg such as 'toto_' or 'gnu_'
+                self.altermode = PREFIX
+            else:
+                print("Error: Unknown command: '" + cellgrammar[1]
+                      + "' in grammar file. Exiting...")
+                exit(0)            
+    #--- Alter modes
+    def alter_cell_value(self, cellvalue):
+        if cellvalue.strip() == "":
+            return "" #TODO: ne pas créer de triple si la cellule est vide
+        if self.altermode == NONE:
+            return cellvalue
+        # ALTER 1: mapping the value of the cell
+        if self.altermode == MAP_ALL:
+            if cellvalue.lower() in self.maptable: #TODO: regarder la cohérence de "lower"
+                return self.maptable[cellvalue.lower()]
+            else:
+                print("Warning: " + cellvalue + " not in maptable")
+                return cellvalue #unmapped
+        if self.altermode == MAP_PART:
+            temp = cellvalue[self.myinfchar:self.mymaxchar].lower()
+            if temp in self.maptable:
+                return self.maptable[temp]
+            else:
+                print("Warning: " + cellvalue + " not in maptable")
+                return cellvalue #unmapped
+        # ALTER 2: extracting info from the cell value itself
+        if self.altermode == EXTRACT:
+            return cellvalue[self.myinfchar:self.mymaxchar]
+        # ALTER 3: adding a prefix to the cell value
+        if self.altermode == PREFIX:
+            return cellvalue + self.prefix
+        print("Error: we should never get here!")
             
-class DateColumn(Column):
-    def generate_triples(self, store, cellvalue, pkeyvalue):
-        store.add((
-            URIRef(self.domain+pkeyvalue),
-            URIRef(self.domain+columntype),
-            Literal(cellvalue, datatype=XSD.date) #'2007-01-01'
-        ))
+    #--------------generate triples
+    def generate_triples(self, store, cellvalue, pkeyvalue, pkeytype):
+        # 0. managing the commands of alteration 
+        newcellvalue = self.alter_cell_value(cellvalue)
 
+        # 1. generate all URIs
+        cellvalueURI  = URIRef(self.domain + format_URI(newcellvalue))
+        celltypeURI   = URIRef(self.domain + format_URI(self.celltype))
+        columntypeURI = URIRef(self.domain + format_URI(self.columntype))
 
-#========================================================== Code sets        
-class CodeSets():
-    def __init__(self,name,dict):
-        self.name = name
-        self.dict = dict
-    def getValue(self, key):
-        if key in self.dict:
-            return dict[key]
-        else:
-            raise KeyError("Key '" + key + "' not found in section '" + self.name + "' of the grammar file")
+        pkeyvalueURI = URIRef(self.domain + format_URI(pkeyvalue))
+        pkeytypeURI  = URIRef(self.domain + format_URI(pkeytype))
         
+        # 2. capture the rough string values in Literal
+        store.add((cellvalueURI,  RDFS.label, Literal(newcellvalue)))
+        store.add((celltypeURI,   RDFS.label, Literal(self.celltype)))
+        store.add((columntypeURI, RDFS.label, Literal(self.columntype)))
+        
+        # 3. to keep track of the ontology definitions required
+        to_define_in_ontology(celltypeURI.n3(), columntypeURI.n3())
 
+        # 4. type the cell value
+        store.add((cellvalueURI, RDF.type, celltypeURI))
 
-def findPkeyIndexInHeader(header, pkey):
-    count = 0
-    for elem in header:
-        if elem == pkey:
-            return count
+        # 5. create the real triple + domain/range
+        if self.cellrole == SUBJECT:
+            store.add((cellvalueURI,  columntypeURI, pkeyvalueURI))
+            store.add((columntypeURI, RDFS.domain,   celltypeURI))
+            store.add((columntypeURI, RDFS.range,    pkeytypeURI))
         else:
-            count += 1
-    # We should never come here
-    return -1
-    
+            store.add((pkeyvalueURI,  columntypeURI, cellvalueURI))
+            store.add((columntypeURI, RDFS.domain,   pkeytypeURI))
+            store.add((columntypeURI, RDFS.range,    celltypeURI))
+
+
+#====================================================== LiteralColumn
+class LiteralColumn(Column):
+    def generate_triples(self, store, cellvalue, pkeyvalue, pkeytype):
+        # 1. create URIs
+        columntypeURI = URIRef(self.domain + format_URI(self.columntype))
+        pkeyvalueURI  = URIRef(self.domain + format_URI(pkeyvalue))
+        pkeytypeURI   = URIRef(self.domain + format_URI(pkeytype))
+
+        # 2. describe the columntype
+        store.add(( columntypeURI, RDFS.label, Literal(self.columntype)))
+        
+        # 3. to define in ontology 
+        to_define_in_ontology(columntypeURI.n3())
+        
+        # 4. create the real triple and domain/range
+        store.add((pkeyvalueURI,
+                   columntypeURI,
+                   Literal(cellvalue, datatype = self.celltype)))
+        store.add((columntypeURI, RDFS.domain, pkeytypeURI))
+        store.add((columntypeURI, RDFS.range,  RDFS.Literal))
 
 
 #================================================= Grammar
 class Grammar():
     # The Grammar constructor is a factory of column objects and list objects
-    def __init__(self,filename, domain, delim):
+    def __init__(self, filename, domain, delim):
         self.filename = filename
         self.domain = domain
         self.delim = delim
@@ -535,7 +349,7 @@ class Grammar():
         # when exploring the lines of the CSV, we need to have the columns ordered
         # the same way than the CSV
         self.orderedcols = []
-        # self.lists = { name1 : CodeSets1, name2 : CodeSets2, ... }
+        # self.lists = { name1 : dict1, name2 : dict2, ... }
         self.lists = {}
         # record pkey = PKey()
         self.pkey = None
@@ -546,15 +360,18 @@ class Grammar():
             raise FileNotFoundError('File "' + filename + '" not found.')
         config = configparser.ConfigParser()
         config.read(filename)
+        # 1. first we get mapping lists
         for elem in config.sections():
-            # Getting code sets
             if elem.startswith('*') and elem.endswith('*'):
-                if VERBOSE: print("List found: " + elem)
                 mydict = dict()
                  # get the key: values defined in grammar
                 for key in config[elem]:
                     mydict[key] = config[elem][key]
-                self.lists[elem] = CodeSets(elem, mydict)
+                self.lists[elem] = mydict
+        # 2. then we get other sections that could need mapping lists
+        # we play the role of a factory
+        for elem in config.sections():
+            if elem.startswith('*'):
                 continue
             #read all elements in grammar section
             mydict = dict()
@@ -562,7 +379,9 @@ class Grammar():
                 mydict[key] = config[elem][key]
             #pkey
             if CELLROLE not in mydict:
-                print("Error: '" + CELLROLE + "' is mandatory in grammar section. Exiting...")
+                print("Error: '" + CELLROLE
+                      + "' is mandatory in grammar section "
+                      + elem + ". Exiting...")
                 exit()
             # We do not record the Column and will not create a class
             if mydict[CELLROLE] == IGNORE:
@@ -575,42 +394,22 @@ class Grammar():
                                  mydict[CELLTYPE],
                                  "",
                                  True)
+                self.columns[elem] = self.pkey
                 continue
             if not CELLTYPE in mydict:
-                print("Error: '" + CELLTYPE + "' is mandatory in grammar section. Exiting...")
+                print("Error: '" + CELLTYPE
+                      + "' is mandatory in grammar section. Exiting...")
                 exit()
-            celltype = mydict[celltype]
-            if celltype == STRING:
-                self.columns[elem] = StringColumn(domain,
-                                                  elem,
-                                                  self.lists,
-                                                  mydict[CELLROLE],
-                                                  STRING,
-                                                  mydict[COLUMNTYPE])
-            elif celltype == INTEGER:
-                                                  self.lists,
-                self.columns[elem] = IntegerColumn(domain,
+            if mydict[CELLTYPE] in GRAMMAR_TYPES:
+                thetype = GRAMMAR_TYPES[mydict[CELLTYPE]]
+                self.columns[elem] = LiteralColumn(domain,
                                                    elem,
                                                    self.lists,
                                                    mydict[CELLROLE],
-                                                   INTEGER,
+                                                   thetype,
                                                    mydict[COLUMNTYPE])
-            elif celltype == FLOAT:
-                self.columns[elem] = FloatColumn(domain,
-                                                 elem,
-                                                 self.lists,
-                                                 mydict[CELLROLE],
-                                                 FLOAT,
-                                                 mydict[COLUMNTYPE])
-            elif celltype == DATE:
-                self.columns[elem] = DateColumn(domain,
-                                                elem,
-                                                self.lists,
-                                                mydict[CELLROLE],
-                                                DATE,
-                                                mydict[COLUMNTYPE])
             else:
-                self.columns[elem] = IRIColumn(domain,
+                self.columns[elem] = URIColumn(domain,
                                                elem,
                                                self.lists,
                                                mydict[CELLROLE],
@@ -619,7 +418,7 @@ class Grammar():
                 
         # Error cases and reporting
         print("Found: "
-              + str(nlen(config.sections()))
+              + str(len(config.sections()))
               + " sections and "
               + str(len(self.lists))
               + " lists")
@@ -628,39 +427,45 @@ class Grammar():
             exit()
 
     #----------------------------------------------------semantic_parser
-    def semantic_parser(self, csvfile, domain, delim, store):
+    def semantic_parser(self, csvfile, store):
+        count = 0
         try:
-            reader = csv.reader(open(source.file, "r", encoding='utf-8', errors='ignore'), delimiter=delim)
+            reader = csv.reader(
+                open(csvfile, "r", encoding='utf-8', errors='ignore'),
+                delimiter=self.delim)
             #--- begin tech
             tim = Timer()
             nblines = countLinesInCSVFile(csvfile)
             bar = progressbar2.ProgressBar(max_value=nblines)
             #--- end tech
             header = None
-            count = 0
             pkeyindex = -1
             for row in reader:
                 bar.update(count)
-                # header
+                # 1. Management of header
                 if count == 0:
                     header = row
                     # 1. the grammar file section names should be included into the headers
                     # note : it is not mandatory to take all the headers
                     for col in self.columns:
                         # management of the ending $1 $2 etc.
-                        if col.name[-2] == MULTITREATMENT: # We only support 9 diff.treatments on the same cell value
-                            temp = col.name.split(MULTITREATMENT)[0]
+                        # We only support 9 diff.treatments on the same cell value
+                        # $1, ..., $9
+                        colobj = self.columns[col]
+                        if colobj.columnname[-2] == MULTITREATMENT: 
+                            temp = colobj.columnname.split(MULTITREATMENT)[0]
                         else:
-                            temp = col.name
+                            temp = colobj.columnname
                         if temp not in header:
-                            print("Error: grammar section name '" + colname
+                            print("Error: grammar section name '"
+                                  + colobj.columnname
                                   + "' not found in CSV file. Exiting...")
                             exit()
                         i = 0
                         for headerelem in header:
                             if headerelem == temp:
-                                col.index = i
-                                if col.pkey:
+                                colobj.index = i
+                                if colobj.ispkey:
                                     pkeyindex = i
                                 break
                             i += 1
@@ -673,14 +478,22 @@ class Grammar():
                     pkeyvalue = row[pkeyindex]
                     # general case: standard row
                     for col in self.columns:
-                        col.generate_triples(store, row[col.index], pkeyvalue, lists)
+                        colobj = self.columns[col]
+                        cellvalue = row[colobj.index]
+                        if cellvalue.strip() == "":
+                            continue
+                        else:
+                            colobj.generate_triples(store,
+                                                    cellvalue,
+                                                    pkeyvalue,
+                                                    self.pkey.celltype)
                     count +=1
             tim.stop()
         except csv.Error as e:
             print("Error caught in loading csv file: " + f)
             print(e)
             sys.exit(1)
-    print("Information: " + str(count) + " csv row converted")
+        print("Information: " + str(count) + " csv row converted")
 
 
 #================================================= usage
