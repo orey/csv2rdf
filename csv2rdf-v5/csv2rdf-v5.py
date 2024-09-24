@@ -1,7 +1,7 @@
 #============================================
 # File name:      csv2rdf.py
 # Author:         Olivier Rey
-# Date:           August 2024
+# Date:           September 2024
 # License:        GPL v3
 #============================================
 #!/usr/bin/env python3
@@ -75,11 +75,13 @@ ONTO_REQ = "to-define-in-ontology.txt"
 DEFINE = []
 
 def to_define_in_ontology(*args):
+    global DEFINE
     for str in args:
         if str not in DEFINE:
             DEFINE.append(str)
 
-def dump_define():            
+def dump_define():
+    global DEFINE
     with open(ONTO_REQ, 'w', encoding=ENCODING, newline='\n') as output:
         for str in DEFINE:
             output.write(str + '\n')
@@ -95,13 +97,13 @@ class Source():
         self.semanticfile = semantics
         self.active = active
     def print(self):
-        print("-----------")
-        print("Source: " +  self.name)
-        print("File: " + self.file)
-        print("Domain: " + self.domain)
-        print("Delim: " + self.delim)
-        print("Active: " + str(self.active))
-        print("Semantics: " + self.semanticfile)
+        myprint("-----------")
+        myprint("Source: " +  self.name)
+        myprint("File: " + self.file)
+        myprint("Domain: " + self.domain)
+        myprint("Delim: " + self.delim)
+        myprint("Active: " + str(self.active))
+        myprint("Semantics: " + self.semanticfile)
 
 
 #============================================ Options: main conf file
@@ -128,7 +130,7 @@ class Options():
                                     config[elem][SEMANTICS],
                                     config[elem][ACTIVE])
                     self.sources.append(source)
-        print("Config file read: found "
+        myprint("Config file read: found "
               + str(len(config.sections()))
               + " source(s) and "
               + str(len(self.sources))
@@ -154,11 +156,11 @@ class RDFStore():
     def add(self, triple):
         self.store.add(triple)
     def dump(self):
-        print("Dumping store")
+        myprint("Dumping store")
         tim = Timer()
         self.store.serialize(self.name, format='turtle')
         tim.stop()
-        print("Store dumped")
+        myprint("Store dumped")
 
 
 
@@ -249,7 +251,7 @@ class URIColumn(Column):
                 self.prefix = cellgrammar[1][7:-1] #expecting one arg such as 'toto_' or 'gnu_'
                 self.altermode = PREFIX
             else:
-                print("Error: Unknown command: '" + cellgrammar[1]
+                myprint("Error: Unknown command: '" + cellgrammar[1]
                       + "' in grammar file. Exiting...")
                 exit(0)            
     #--- Alter modes
@@ -263,14 +265,14 @@ class URIColumn(Column):
             if cellvalue.lower() in self.maptable: #TODO: regarder la cohérence de "lower"
                 return self.maptable[cellvalue.lower()]
             else:
-                print("Warning: " + cellvalue + " not in maptable")
+                myprint("Warning: " + cellvalue + " not in maptable")
                 return cellvalue #unmapped
         if self.altermode == MAP_PART:
             temp = cellvalue[self.myinfchar:self.mymaxchar].lower()
             if temp in self.maptable:
                 return self.maptable[temp]
             else:
-                print("Warning: " + cellvalue + " not in maptable")
+                myprint("Warning: " + cellvalue + " not in maptable")
                 return cellvalue #unmapped
         # ALTER 2: extracting info from the cell value itself
         if self.altermode == EXTRACT:
@@ -278,7 +280,7 @@ class URIColumn(Column):
         # ALTER 3: adding a prefix to the cell value
         if self.altermode == PREFIX:
             return cellvalue + self.prefix
-        print("Error: we should never get here!")
+        myprint("Error: we should never get here!")
             
     #--------------generate triples
     def generate_triples(self, store, cellvalue, pkeyvalue, pkeytype):
@@ -379,7 +381,7 @@ class Grammar():
                 mydict[key] = config[elem][key]
             #pkey
             if CELLROLE not in mydict:
-                print("Error: '" + CELLROLE
+                myprint("Error: '" + CELLROLE
                       + "' is mandatory in grammar section "
                       + elem + ". Exiting...")
                 exit()
@@ -397,7 +399,7 @@ class Grammar():
                 self.columns[elem] = self.pkey
                 continue
             if not CELLTYPE in mydict:
-                print("Error: '" + CELLTYPE
+                myprint("Error: '" + CELLTYPE
                       + "' is mandatory in grammar section. Exiting...")
                 exit()
             if mydict[CELLTYPE] in GRAMMAR_TYPES:
@@ -417,13 +419,13 @@ class Grammar():
                                                mydict[COLUMNTYPE])
                 
         # Error cases and reporting
-        print("Found: "
+        myprint("Found: "
               + str(len(config.sections()))
               + " sections and "
               + str(len(self.lists))
               + " lists")
         if self.pkey == None:
-            print("Error: pkey not found in grammar file. Exiting...")
+            myprint("Error: pkey not found in grammar file. Exiting...")
             exit()
 
     #----------------------------------------------------semantic_parser
@@ -457,7 +459,7 @@ class Grammar():
                         else:
                             temp = colobj.columnname
                         if temp not in header:
-                            print("Error: grammar section name '"
+                            myprint("Error: grammar section name '"
                                   + colobj.columnname
                                   + "' not found in CSV file. Exiting...")
                             exit()
@@ -470,7 +472,7 @@ class Grammar():
                                 break
                             i += 1
                     if pkeyindex == -1:
-                        print("Error: could not find pkey in CSV header. Exiting...")
+                        myprint("Error: could not find pkey in CSV header. Exiting...")
                         exit()
                     # increment CSV line number
                     count +=1
@@ -490,10 +492,10 @@ class Grammar():
                     count +=1
             tim.stop()
         except csv.Error as e:
-            print("Error caught in loading csv file: " + f)
-            print(e)
+            myprint("Error caught in loading csv file: " + f)
+            myprint(e)
             sys.exit(1)
-        print("Information: " + str(count) + " csv row converted")
+        myprint("Information: " + str(count) + " csv row converted")
 
 
 #================================================= usage
@@ -539,7 +541,7 @@ def main():
             sys.exit()
         if o in ("-c", "--conf"):
             options = a
-            print("Configuration file: " + a)
+            myprint("Configuration file: " + a)
 
     # default option file name if no options are provided
     if options == None:
@@ -564,8 +566,11 @@ def main():
         # Dumping the triplestore
         store.dump()
 
+    myprint("Dumping " + ONTO_REQ)
+    dump_define()
+    myprint("Done")
     globaltimer.stop()
-    print("Goodbye")
+    myprint("Goodbye")
     return
 
 
