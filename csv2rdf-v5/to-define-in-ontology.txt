@@ -1,30 +1,30 @@
-<https://www.nhindustries.com/rdf/mipl/ippn>
-<https://www.nhindustries.com/rdf/mipl/ippn_contains>
-<https://www.nhindustries.com/rdf/mipl/csn>
-<https://www.nhindustries.com/rdf/mipl/csn_located_in>
-<https://www.nhindustries.com/rdf/mipl/isn>
-<https://www.nhindustries.com/rdf/mipl/isn_located_in>
-<https://www.nhindustries.com/rdf/mipl/pnr>
-<https://www.nhindustries.com/rdf/mipl/manufacturer>
-<https://www.nhindustries.com/rdf/mipl/provides_part>
-<https://www.nhindustries.com/rdf/mipl/nation>
-<https://www.nhindustries.com/rdf/mipl/serviced_to>
-<https://www.nhindustries.com/rdf/mipl/vapmov_country_applicable_to>
-<https://www.nhindustries.com/rdf/mipl/aircraft_type>
-<https://www.nhindustries.com/rdf/mipl/vapmov_used_in>
-<https://www.nhindustries.com/rdf/mipl/rdfs:comment>
-<https://www.nhindustries.com/rdf/mipl/higher_level_nato_part_id>
-<https://www.nhindustries.com/rdf/mipl/nato_supply_class>
-<https://www.nhindustries.com/rdf/mipl/lower_level_nato_part_id>
-<https://www.nhindustries.com/rdf/mipl/nato_item_id_number>
-<https://www.nhindustries.com/rdf/mipl/supplier>
-<https://www.nhindustries.com/rdf/mipl/supplied_by>
-<https://www.nhindustries.com/rdf/mipl/effectivity>
-<https://www.nhindustries.com/rdf/mipl/effectivity_from>
-<https://www.nhindustries.com/rdf/mipl/aircraft_configuration>
-<https://www.nhindustries.com/rdf/mipl/mountable_on>
-<https://www.nhindustries.com/rdf/mipl/effectivity_to>
-<https://www.nhindustries.com/rdf/mipl/bbl_validity_code>
-<https://www.nhindustries.com/rdf/mipl/effectivity_to_bbl>
-<https://www.nhindustries.com/rdf/mipl/ilsn>
-<https://www.nhindustries.com/rdf/mipl/ilsn_key>
+Cell type: <https://www.nhindustries.com/rdf/mipl/ippn>
+Column type: <https://www.nhindustries.com/rdf/mipl/ippn_contains>
+Cell type: <https://www.nhindustries.com/rdf/mipl/csn>
+Column type: <https://www.nhindustries.com/rdf/mipl/csn_located_in>
+Cell type: <https://www.nhindustries.com/rdf/mipl/isn>
+Column type: <https://www.nhindustries.com/rdf/mipl/isn_located_in>
+Cell type: <https://www.nhindustries.com/rdf/mipl/pnr>
+Cell type: <https://www.nhindustries.com/rdf/mipl/manufacturer>
+Column type: <https://www.nhindustries.com/rdf/mipl/provides_part>
+Cell type: <https://www.nhindustries.com/rdf/mipl/nation>
+Column type: <https://www.nhindustries.com/rdf/mipl/serviced_to>
+Column type: <https://www.nhindustries.com/rdf/mipl/vapmov_country_applicable_to>
+Cell type: <https://www.nhindustries.com/rdf/mipl/aircraft_type>
+Column type: <https://www.nhindustries.com/rdf/mipl/vapmov_used_in>
+Cell type: <https://www.nhindustries.com/rdf/mipl/higher_level_nato_part_id>
+Column type: <https://www.nhindustries.com/rdf/mipl/nato_supply_class>
+Cell type: <https://www.nhindustries.com/rdf/mipl/lower_level_nato_part_id>
+Column type: <https://www.nhindustries.com/rdf/mipl/nato_item_id_number>
+Column type: <https://www.nhindustries.com/rdf/mipl/part_description>
+Cell type: <https://www.nhindustries.com/rdf/mipl/supplier>
+Column type: <https://www.nhindustries.com/rdf/mipl/supplied_by>
+Cell type: <https://www.nhindustries.com/rdf/mipl/effectivity>
+Column type: <https://www.nhindustries.com/rdf/mipl/effectivity_from>
+Cell type: <https://www.nhindustries.com/rdf/mipl/aircraft_configuration>
+Column type: <https://www.nhindustries.com/rdf/mipl/mountable_on>
+Column type: <https://www.nhindustries.com/rdf/mipl/effectivity_to>
+Cell type: <https://www.nhindustries.com/rdf/mipl/bbl_validity_code>
+Column type: <https://www.nhindustries.com/rdf/mipl/effectivity_to_bbl>
+Cell type: <https://www.nhindustries.com/rdf/mipl/ilsn>
+Column type: <https://www.nhindustries.com/rdf/mipl/ilsn_key>

@@ -208,7 +208,7 @@ class PKey(Column):
         store.add(( celltypeURI,  RDFS.label, Literal(self.celltype)))
         
         # 3. to keep track of the ontology definitions required
-        to_define_in_ontology(celltypeURI.n3())
+        to_define_in_ontology("Cell type: " + celltypeURI.n3())
 
         # 4. Type the pkey
         store.add(( cellvalueURI, RDF.type, celltypeURI))
@@ -301,7 +301,8 @@ class URIColumn(Column):
         store.add((columntypeURI, RDFS.label, Literal(self.columntype)))
         
         # 3. to keep track of the ontology definitions required
-        to_define_in_ontology(celltypeURI.n3(), columntypeURI.n3())
+        to_define_in_ontology("Cell type: " + celltypeURI.n3(),
+                              "Column type: " + columntypeURI.n3())
 
         # 4. type the cell value
         store.add((cellvalueURI, RDF.type, celltypeURI))
@@ -329,7 +330,7 @@ class LiteralColumn(Column):
         store.add(( columntypeURI, RDFS.label, Literal(self.columntype)))
         
         # 3. to define in ontology 
-        to_define_in_ontology(columntypeURI.n3())
+        to_define_in_ontology("Column type: " + columntypeURI.n3())
         
         # 4. create the real triple and domain/range
         store.add((pkeyvalueURI,
